@@ -39,41 +39,25 @@ class MyApp extends StatelessWidget {
 
             final user = snapshot.data;
             if (user == null) {
-              return const LoginScreen(); // Redirige a login si no está autenticado
+              return const LoginScreen();
             }
 
-            // Verificar si es admin
-            return FutureBuilder<bool>(
-              future: _esAdmin(user),
-              builder: (context, adminSnapshot) {
-                if (adminSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                }
+            // Verificación simple por email (reemplaza con tu email admin)
+            if (user.email == 'dominguezmariajimena@gmail.com') {
+              return const AdminPanel();
+            }
 
-                if (adminSnapshot.data == true) {
-                  return const AdminPanel();
-                }
-
-                // Si no es admin, cerrar sesión y mostrar mensaje
-                FirebaseAuth.instance.signOut();
-                return const Scaffold(
-                  body: Center(
-                    child: Text('Acceso solo para administradores'),
-                  ),
-                );
-              },
+            // Si no es el email admin, cerrar sesión
+            FirebaseAuth.instance.signOut();
+            return const Scaffold(
+              body: Center(
+                child: Text('Acceso solo para administradores autorizados'),
+              ),
             );
           },
         ),
         '/tracking': (context) => const RepairTrackingScreen(), // Público
       },
     );
-  }
-
-  Future<bool> _esAdmin(User user) async {
-    final token = await user.getIdTokenResult(true);
-    return token.claims?['admin'] == true;
   }
 }

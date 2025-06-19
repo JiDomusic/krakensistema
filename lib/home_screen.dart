@@ -46,12 +46,12 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SingleChildScrollView(
         child: Stack(
           children: [
-            // Decoración oriental
+            // Decoración
             Positioned(
               top: -50,
               right: -50,
               child: Image.asset(
-                '', //  imagen
+                'assets/images/telefono.png', //  imagen
                 width: 200,
                 color: Colors.red[100]?.withOpacity(0.3),
               ),
@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Text(
-                    '幸运龙维修系统', // "Sistema de Reparaciones Dragón de la Suerte"
+                    '幸运龙维修系统', // "Dragón de la Suerte"
                     style: GoogleFonts.abel(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,

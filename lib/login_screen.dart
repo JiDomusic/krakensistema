@@ -13,33 +13,30 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   String? errorMessage;
   bool isLoading = false;
+  final _formKey = GlobalKey<FormState>();
 
   Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       errorMessage = null;
       isLoading = true;
     });
 
-    final emailInput = _emailController.text.trim().toLowerCase();
-    final passwordInput = _passwordController.text.trim();
-
-    if (emailInput.isEmpty || passwordInput.isEmpty) {
-      setState(() {
-        errorMessage = 'Completa todos los campos';
-        isLoading = false;
-      });
-      return;
-    }
-
     try {
+      final email = _emailController.text.trim().toLowerCase();
+      final password = _passwordController.text.trim();
+
+      // Autenticar con Firebase
       final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailInput,
-        password: passwordInput,
+        email: email,
+        password: password,
       );
 
-      final email = credential.user?.email?.trim().toLowerCase();
-      if (email != 'dominguezmariajimena@gmail.com') {
+      // Verificar email autorizado (reemplaza con tu email admin)
+      if (credential.user?.email?.toLowerCase() != 'dominguezmariajimena@gmail.com') {
         await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
         setState(() {
           errorMessage = 'No tienes permisos de administrador';
           isLoading = false;
@@ -47,14 +44,46 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Navegar al panel admin
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/admin/panel');
     } on FirebaseAuthException catch (e) {
+      String errorText;
+      switch (e.code) {
+        case 'invalid-email':
+          errorText = 'Email inválido';
+          break;
+        case 'user-disabled':
+          errorText = 'Usuario deshabilitado';
+          break;
+        case 'user-not-found':
+        case 'wrong-password':
+          errorText = 'Email o contraseña incorrectos';
+          break;
+        case 'too-many-requests':
+          errorText = 'Demasiados intentos. Intenta más tarde';
+          break;
+        default:
+          errorText = 'Error al iniciar sesión: ${e.message}';
+      }
+
       setState(() {
-        errorMessage = e.message ?? 'Error al iniciar sesión';
+        errorMessage = errorText;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error inesperado: ${e.toString()}';
         isLoading = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -63,32 +92,60 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(title: const Text('Acceso Admin')),
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Contraseña'),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: isLoading ? null : _login,
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Ingresar'),
-            ),
-            if (errorMessage != null) ...[
-              const SizedBox(height: 20),
-              Text(errorMessage!, style: const TextStyle(color: Colors.red)),
-            ]
-          ],
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Ingresa tu email';
+                  }
+                  if (!value.contains('@')) {
+                    return 'Email inválido';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Contraseña'),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Ingresa tu contraseña';
+                  }
+                  if (value.length < 6) {
+                    return 'Mínimo 6 caracteres';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : _login,
+                  child: isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Ingresar'),
+                ),
+              ),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 20),
+                Text(
+                  errorMessage!,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+              ]
+            ],
+          ),
         ),
       ),
     );
