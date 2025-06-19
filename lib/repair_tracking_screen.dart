@@ -9,77 +9,98 @@ class RepairTrackingScreen extends StatefulWidget {
 }
 
 class _RepairTrackingScreenState extends State<RepairTrackingScreen> {
-  final _codigoController = TextEditingController();
-  final _dniController = TextEditingController();
-  Map<String, dynamic>? reparacion;
-  String? error;
+  final TextEditingController _dniController = TextEditingController();
+  final TextEditingController _codeController = TextEditingController();
+  Map<String, dynamic>? repairData;
+  String? errorMessage;
 
-  Future<void> buscarReparacion() async {
-    final codigo = _codigoController.text.trim();
-    final dni = int.tryParse(_dniController.text.trim());
-
-    if (codigo.isEmpty || dni == null) {
-      setState(() => error = 'Ingrese un código y un DNI válidos.');
-      return;
-    }
-
-    final doc = await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).get();
-
-    if (!doc.exists) {
-      setState(() => error = 'No se encontró la reparación con ese código.');
-      return;
-    }
-
-    final data = doc.data()!;
-    if (data['dni'] != dni) {
-      setState(() => error = 'El DNI no coincide con el registro.');
-      return;
-    }
-
+  void fetchRepairData() async {
     setState(() {
-      reparacion = data;
-      error = null;
+      repairData = null;
+      errorMessage = null;
     });
+
+    final dni = int.tryParse(_dniController.text.trim());
+    final code = _codeController.text.trim();
+
+    if (dni == null || code.isEmpty) {
+      setState(() => errorMessage = 'Por favor ingresa un DNI válido y un código.');
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('reparaciones').doc(code).get();
+      if (!doc.exists) {
+        setState(() => errorMessage = 'No se encontró ninguna reparación con ese código.');
+        return;
+      }
+
+      final data = doc.data()!;
+      if (data['dni'] != dni) {
+        setState(() => errorMessage = 'El DNI no coincide con el código ingresado.');
+        return;
+      }
+
+      setState(() => repairData = data);
+    } catch (e) {
+      setState(() => errorMessage = 'Error al buscar la reparación.');
+    }
+  }
+
+  Widget buildStatusMap() {
+    final historial = repairData?['historial'] as List<dynamic>?;
+    if (historial == null || historial.isEmpty) return const Text('Sin historial disponible.');
+
+    return Column(
+      children: historial.asMap().entries.map((entry) {
+        final etapa = entry.value['etapa'] ?? 'Etapa desconocida';
+        final detalle = entry.value['detalle'] ?? '';
+        final fecha = entry.value['fecha'] ?? '';
+        final color = entry.key % 2 == 0 ? Colors.blue : Colors.redAccent;
+
+        return Card(
+          color: color.withOpacity(0.1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ListTile(
+            leading: Icon(Icons.construction, color: color),
+            title: Text(etapa, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+            subtitle: Text('$detalle\nFecha: $fecha'),
+          ),
+        );
+      }).toList(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Seguimiento de reparación')),
+      appBar: AppBar(title: const Text('Seguimiento de Reparación')),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            TextField(
-              controller: _codigoController,
-              decoration: const InputDecoration(labelText: 'Código de reparación'),
-            ),
+            const Text('Consulta el estado de tu equipo',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
             TextField(
               controller: _dniController,
-              decoration: const InputDecoration(labelText: 'DNI'),
               keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'DNI'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _codeController,
+              decoration: const InputDecoration(labelText: 'Código de reparación'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: buscarReparacion,
-              child: const Text('Buscar'),
+              onPressed: fetchRepairData,
+              child: const Text('Consultar'),
             ),
-            if (error != null) ...[
-              const SizedBox(height: 16),
-              Text(error!, style: const TextStyle(color: Colors.red)),
-            ],
-            if (reparacion != null) ...[
-              const SizedBox(height: 24),
-              Text('Estado: ${reparacion!['estado']}', style: const TextStyle(fontSize: 18)),
-              const SizedBox(height: 16),
-              const Text('Historial:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ...List<Widget>.from(
-                (reparacion!['historial'] as List).map((item) => ListTile(
-                  title: Text(item['etapa'] ?? ''),
-                  subtitle: Text('${item['detalle']}\n${item['fecha']}'),
-                )),
-              ),
-            ]
+            const SizedBox(height: 20),
+            if (errorMessage != null)
+              Text(errorMessage!, style: const TextStyle(color: Colors.pink)),
+            if (repairData != null) Expanded(child: buildStatusMap()),
           ],
         ),
       ),
