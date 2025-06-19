@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'admin_panel.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'home_screen.dart';
 import 'login_screen.dart';
-import 'admin_panel.dart';
-import 'repair_tracking_screen.dart';
+import 'screens/home_tracking_screen.dart'; // Pantalla unificada
+import 'screens/login_screen.dart';
+import 'screens/admin_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,40 +24,66 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'KRAKEN Sistema',
-      theme: ThemeData(primarySwatch: Colors.indigo),
+      theme: ThemeData(
+        primarySwatch: Colors.pink, // Color principal cambiado a rosa
+        useMaterial3: true,
+      ),
       initialRoute: '/',
       routes: {
-        '/': (context) => const HomeScreen(), // Público
+        '/': (context) => const HomeTrackingScreen(), // Pantalla unificada
         '/admin/login': (context) => const LoginScreen(),
-        '/admin/panel': (context) => StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
+        '/admin/panel': (context) => const AdminAccessGuard(),
+        // Se eliminó la ruta '/tracking' (ahora está integrada)
+      },
+    );
+  }
+}
 
-            final user = snapshot.data;
-            if (user == null) {
-              return const LoginScreen();
-            }
+// Widget que protege el acceso a /admin/panel
+class AdminAccessGuard extends StatelessWidget {
+  const AdminAccessGuard({super.key});
 
-            // Verificación simple por email (reemplaza con tu email admin)
-            if (user.email == 'dominguezmariajimena@gmail.com') {
-              return const AdminPanel();
-            }
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-            // Si no es el email admin, cerrar sesión
-            FirebaseAuth.instance.signOut();
-            return const Scaffold(
-              body: Center(
-                child: Text('Acceso solo para administradores autorizados'),
+        final user = snapshot.data;
+
+        if (user == null) {
+          // No logueado: ir al login
+          Future.microtask(() =>
+              Navigator.pushReplacementNamed(context, '/admin/login'));
+          return const SizedBox();
+        }
+
+        const allowedAdmins = [
+          'dominguezmariajimena@gmail.com',
+          'equiz.rec@gmail.com',
+        ];
+
+        if (allowedAdmins.contains(user.email?.toLowerCase())) {
+          // Usuario autorizado
+          return const AdminPanel();
+        } else {
+          // Usuario no autorizado
+          FirebaseAuth.instance.signOut();
+          return const Scaffold(
+            body: Center(
+              child: Text(
+                '🚫 Acceso denegado.\nSolo administradores autorizados.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.red, fontSize: 16),
               ),
-            );
-          },
-        ),
-        '/tracking': (context) => const RepairTrackingScreen(), // Público
+            ),
+          );
+        }
       },
     );
   }

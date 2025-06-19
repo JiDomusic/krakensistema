@@ -27,16 +27,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final email = _emailController.text.trim().toLowerCase();
       final password = _passwordController.text.trim();
 
-      // Autenticar con Firebase
-      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
 
-      // Verificar email autorizado (reemplaza con tu email admin)
-      if (credential.user?.email?.toLowerCase() != 'dominguezmariajimena@gmail.com') {
+      final allowedAdmins = [
+        'dominguezmariajimena@gmail.com',
+        'equiz.rec@gmail.com'
+      ];
+
+      if (!allowedAdmins.contains(credential.user?.email?.toLowerCase())) {
         await FirebaseAuth.instance.signOut();
-        if (!mounted) return;
         setState(() {
           errorMessage = 'No tienes permisos de administrador';
           isLoading = false;
@@ -44,31 +44,18 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Navegar al panel admin
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/admin/panel');
     } on FirebaseAuthException catch (e) {
-      String errorText;
-      switch (e.code) {
-        case 'invalid-email':
-          errorText = 'Email inválido';
-          break;
-        case 'user-disabled':
-          errorText = 'Usuario deshabilitado';
-          break;
-        case 'user-not-found':
-        case 'wrong-password':
-          errorText = 'Email o contraseña incorrectos';
-          break;
-        case 'too-many-requests':
-          errorText = 'Demasiados intentos. Intenta más tarde';
-          break;
-        default:
-          errorText = 'Error al iniciar sesión: ${e.message}';
-      }
-
       setState(() {
-        errorMessage = errorText;
+        errorMessage = switch (e.code) {
+          'invalid-email' => 'Email inválido',
+          'user-disabled' => 'Usuario deshabilitado',
+          'user-not-found' || 'wrong-password' =>
+          'Email o contraseña incorrectos',
+          'too-many-requests' => 'Demasiados intentos. Intenta más tarde',
+          _ => 'Error: ${e.message}',
+        };
         isLoading = false;
       });
     } catch (e) {
@@ -101,30 +88,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Ingresa tu email';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Email inválido';
-                  }
-                  return null;
-                },
+                validator: (value) =>
+                value == null || !value.contains('@')
+                    ? 'Ingresa un email válido'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _passwordController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Contraseña'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Ingresa tu contraseña';
-                  }
-                  if (value.length < 6) {
-                    return 'Mínimo 6 caracteres';
-                  }
-                  return null;
-                },
+                validator: (value) =>
+                value == null || value.length < 6
+                    ? 'Mínimo 6 caracteres'
+                    : null,
               ),
               const SizedBox(height: 24),
               SizedBox(
