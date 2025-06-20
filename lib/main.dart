@@ -5,8 +5,8 @@ import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 import 'screens/home_tracking_screen.dart'; // Pantalla unificada
-import 'screens/login_screen.dart';
-import 'screens/admin_panel.dart';
+import 'screens/login_screen.dart' hide LoginScreen;
+import 'screens/admin_panel.dart' hide AdminPanel;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
