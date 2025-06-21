@@ -157,7 +157,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      color: Colors.white,
+      color: Colors.teal,
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Column(
@@ -167,7 +167,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
               style: GoogleFonts.notoSans(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.pink[800],
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 20),
@@ -351,7 +351,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
         ElevatedButton(
           onPressed: () => setState(() => _showTracking = false),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.pink[300],
+            backgroundColor: Colors.teal[300],
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -360,6 +360,17 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
           child: const Text('Nueva Consulta', style: TextStyle(color: Colors.white)),
         ),
       ],
+    );
+  }
+
+  Widget _buildLogoImage() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 30),
+      child: Image.asset(
+        'assets/images/logokraken.jpg',
+        width: 180,
+        fit: BoxFit.contain,
+      ),
     );
   }
 
@@ -375,7 +386,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.pink[600],
+        backgroundColor: Colors.pinkAccent[600],
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Container(
@@ -385,7 +396,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
             end: Alignment.bottomCenter,
             colors: [
               Colors.pink[50]!,
-              Colors.pink[100]!,
+              Colors.amber[100]!,
             ],
           ),
         ),
@@ -393,6 +404,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
+              _buildLogoImage(),
               if (!_showTracking) _buildConsultaForm(),
               if (_showTracking) _buildTrackingInfo(),
             ],
