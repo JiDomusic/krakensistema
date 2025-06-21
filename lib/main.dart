@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'admin_panel.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'login_screen.dart';
-import 'screens/home_tracking_screen.dart'; // Pantalla unificada
-import 'screens/login_screen.dart' hide LoginScreen;
-import 'screens/admin_panel.dart' hide AdminPanel;
+import 'screens/login_screen.dart';
+import 'screens/admin_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,15 +22,14 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'KRAKEN Sistema',
       theme: ThemeData(
-        primarySwatch: Colors.pink, // Color principal cambiado a rosa
+        primarySwatch: Colors.pink,
         useMaterial3: true,
       ),
       initialRoute: '/',
       routes: {
-        '/': (context) => const HomeTrackingScreen(), // Pantalla unificada
+        '/': (context) => const HomeTrackingScreen(),
         '/admin/login': (context) => const LoginScreen(),
         '/admin/panel': (context) => const AdminAccessGuard(),
-        // Se eliminó la ruta '/tracking' (ahora está integrada)
       },
     );
   }
@@ -57,22 +53,20 @@ class AdminAccessGuard extends StatelessWidget {
         final user = snapshot.data;
 
         if (user == null) {
-          // No logueado: ir al login
           Future.microtask(() =>
               Navigator.pushReplacementNamed(context, '/admin/login'));
           return const SizedBox();
         }
 
         const allowedAdmins = [
-          'dominguezmariajimena@gmail.com',
+          '',
           'equiz.rec@gmail.com',
+          'krakenserviciotecnico@gmail.com',
         ];
 
         if (allowedAdmins.contains(user.email?.toLowerCase())) {
-          // Usuario autorizado
           return const AdminPanel();
         } else {
-          // Usuario no autorizado
           FirebaseAuth.instance.signOut();
           return const Scaffold(
             body: Center(
@@ -85,6 +79,33 @@ class AdminAccessGuard extends StatelessWidget {
           );
         }
       },
+    );
+  }
+}
+
+// Pantalla principal con el logo Kraken
+class HomeTrackingScreen extends StatelessWidget {
+  const HomeTrackingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('KRAKEN Sistema'),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: Container(
+          width: 200,
+          height: 200,
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/images/logokraken.png'),
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

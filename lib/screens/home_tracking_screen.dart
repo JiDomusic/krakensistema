@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class HomeRepairTrackingScreen extends StatefulWidget {
-  const HomeRepairTrackingScreen({super.key});
+class HomeTrackingScreen extends StatefulWidget {
+  const HomeTrackingScreen({super.key});
 
   @override
-  State<HomeRepairTrackingScreen> createState() => _HomeRepairTrackingScreenState();
+  State<HomeTrackingScreen> createState() => _HomeTrackingScreenState();
 }
 
-class _HomeRepairTrackingScreenState extends State<HomeRepairTrackingScreen> {
+class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
   final _dniController = TextEditingController();
   final _codigoController = TextEditingController();
   bool isLoading = false;
@@ -259,12 +259,10 @@ class _HomeRepairTrackingScreenState extends State<HomeRepairTrackingScreen> {
   Widget _buildTrackingInfo() {
     final historial = (reparacion?['historial'] as List?) ?? [];
 
-    // Aseguramos que siempre haya 4 pasos
     final pasosCompletos = historial.length;
     final pasosTotales = 4;
     final pasosFaltantes = pasosTotales - pasosCompletos;
 
-    // Creamos una lista completa con los pasos existentes + placeholders si es necesario
     final todosPasos = [
       ...historial.map((e) => e.toString()),
       for (int i = 0; i < pasosFaltantes; i++) 'Pendiente...'
