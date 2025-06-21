@@ -63,7 +63,6 @@ class AdminAccessGuard extends StatelessWidget {
         }
 
         const allowedAdmins = [
-          '',
           'equiz.rec@gmail.com',
           'krakenserviciotecnico@gmail.com',
         ];
