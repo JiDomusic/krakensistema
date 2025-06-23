@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'screens/home_tracking_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/admin_panel.dart';
 import 'firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'screens/home_tracking_screen.dart'; // Pantalla unificada
-import 'screens/login_screen.dart';
-import 'screens/admin_panel.dart' hide AdminPanel;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,21 +23,28 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'KRAKEN Sistema',
       theme: ThemeData(
-        primarySwatch: Colors.pink, // Color principal cambiado a rosa
+        primarySwatch: Colors.pink,
         useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
       ),
       initialRoute: '/',
       routes: {
-        '/': (context) => const HomeTrackingScreen(), // Pantalla unificada
+        '/': (context) => const HomeTrackingScreen(),
         '/admin/login': (context) => const LoginScreen(),
         '/admin/panel': (context) => const AdminAccessGuard(),
-        // Se eliminó la ruta '/tracking' (ahora está integrada)
       },
     );
   }
 }
 
-// Widget que protege el acceso a /admin/panel
 class AdminAccessGuard extends StatelessWidget {
   const AdminAccessGuard({super.key});
 
@@ -56,7 +62,6 @@ class AdminAccessGuard extends StatelessWidget {
         final user = snapshot.data;
 
         if (user == null) {
-          // No logueado: ir al login
           Future.microtask(() =>
               Navigator.pushReplacementNamed(context, '/admin/login'));
           return const SizedBox();
@@ -65,22 +70,18 @@ class AdminAccessGuard extends StatelessWidget {
         const allowedAdmins = [
           'equiz.rec@gmail.com',
           'krakenserviciotecnico@gmail.com',
+          'dominguezmariajimena@gmail.com'
         ];
 
         if (allowedAdmins.contains(user.email?.toLowerCase())) {
-          // Usuario autorizado
           return const AdminPanel();
         } else {
-          // Usuario no autorizado
-          FirebaseAuth.instance.signOut();
+          Future.microtask(() async {
+            await FirebaseAuth.instance.signOut();
+            Navigator.pushReplacementNamed(context, '/admin/login');
+          });
           return const Scaffold(
-            body: Center(
-              child: Text(
-                '🚫 Acceso denegado.\nSolo administradores autorizados.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.red, fontSize: 16),
-              ),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
       },

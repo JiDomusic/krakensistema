@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,57 +12,44 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String? errorMessage;
-  bool isLoading = false;
+  String? _errorMessage;
+  bool _isLoading = false;
   final _formKey = GlobalKey<FormState>();
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
-      errorMessage = null;
-      isLoading = true;
+      _errorMessage = null;
+      _isLoading = true;
     });
 
     try {
       final email = _emailController.text.trim().toLowerCase();
       final password = _passwordController.text.trim();
 
-      final credential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password);
-
-      final allowedAdmins = [
-        'dominguezmariajimena@gmail.com',
-        'equiz.rec@gmail.com'
-      ];
-
-      if (!allowedAdmins.contains(credential.user?.email?.toLowerCase())) {
-        await FirebaseAuth.instance.signOut();
-        setState(() {
-          errorMessage = 'No tienes permisos de administrador';
-          isLoading = false;
-        });
-        return;
-      }
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/admin/panel');
     } on FirebaseAuthException catch (e) {
       setState(() {
-        errorMessage = switch (e.code) {
+        _errorMessage = switch (e.code) {
           'invalid-email' => 'Email inválido',
           'user-disabled' => 'Usuario deshabilitado',
-          'user-not-found' || 'wrong-password' =>
-          'Email o contraseña incorrectos',
+          'user-not-found' || 'wrong-password' => 'Email o contraseña incorrectos',
           'too-many-requests' => 'Demasiados intentos. Intenta más tarde',
           _ => 'Error: ${e.message}',
         };
-        isLoading = false;
+        _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        errorMessage = 'Error inesperado: ${e.toString()}';
-        isLoading = false;
+        _errorMessage = 'Error inesperado';
+        _isLoading = false;
       });
     }
   }
@@ -76,52 +64,112 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Acceso Admin')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) =>
-                value == null || !value.contains('@')
-                    ? 'Ingresa un email válido'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Contraseña'),
-                validator: (value) =>
-                value == null || value.length < 6
-                    ? 'Mínimo 6 caracteres'
-                    : null,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : _login,
-                  child: isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Ingresar'),
-                ),
-              ),
-              if (errorMessage != null) ...[
-                const SizedBox(height: 20),
-                Text(
-                  errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-              ]
+      appBar: AppBar(
+        title: Text(
+          'Acceso Administrador',
+          style: GoogleFonts.notoSans(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Colors.pink[600],
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.pink[50]!,
+              Colors.amber[50]!,
             ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/logokraken.jpg',
+                        width: 150,
+                      ),
+                      const SizedBox(height: 30),
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: const Icon(Icons.email),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) =>
+                        value == null || !value.contains('@')
+                            ? 'Ingresa un email válido'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: 'Contraseña',
+                          prefixIcon: const Icon(Icons.lock),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        validator: (value) =>
+                        value == null || value.length < 6
+                            ? 'Mínimo 6 caracteres'
+                            : null,
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.pink[600],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : Text(
+                            'INGRESAR',
+                            style: GoogleFonts.notoSans(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

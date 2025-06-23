@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AdminPanel extends StatefulWidget {
   const AdminPanel({super.key});
@@ -10,8 +12,18 @@ class AdminPanel extends StatefulWidget {
 
 class _AdminPanelState extends State<AdminPanel> {
   final _searchController = TextEditingController();
+  final _detalleController = TextEditingController();
   Map<String, dynamic>? _reparacion;
   bool _isLoading = false;
+  String _estadoSeleccionado = 'En revisión';
+
+  final List<String> _estados = [
+    'En revisión',
+    'En reparación',
+    'Esperando repuesto',
+    'Listo para retirar',
+    'Entregado'
+  ];
 
   Future<void> _buscarReparacion() async {
     setState(() {
@@ -19,64 +31,91 @@ class _AdminPanelState extends State<AdminPanel> {
       _reparacion = null;
     });
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('reparaciones')
-        .doc(_searchController.text.trim())
-        .get();
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .where('codigo', isEqualTo: _searchController.text.trim())
+          .limit(1)
+          .get();
 
-    if (snapshot.exists) {
-      setState(() => _reparacion = snapshot.data()!);
-    } else {
+      if (query.docs.isNotEmpty) {
+        setState(() => _reparacion = query.docs.first.data());
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reparación no encontrada')),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reparación no encontrada')),
+        SnackBar(content: Text('Error: ${e.toString()}')),
       );
     }
     setState(() => _isLoading = false);
   }
 
-  Future<void> _actualizarEstado(String nuevoEstado) async {
-    if (_reparacion == null) return;
+  Future<void> _actualizarEstado() async {
+    if (_reparacion == null || _detalleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresa un detalle antes de actualizar')),
+      );
+      return;
+    }
 
     final nuevoEvento = {
-      "etapa": nuevoEstado,
-      "detalle": "Actualizado por administrador",
-      "fecha": FieldValue.serverTimestamp(),
+      'etapa': _estadoSeleccionado,
+      'detalle': _detalleController.text,
+      'fecha': DateTime.now().toIso8601String(),
     };
 
-    await FirebaseFirestore.instance
-        .collection('reparaciones')
-        .doc(_searchController.text.trim())
-        .update({
-      "estado": nuevoEstado,
-      "historial": FieldValue.arrayUnion([nuevoEvento]),
-    });
+    try {
+      await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .doc(_reparacion!['codigo'])
+          .update({
+        'estado': _estadoSeleccionado,
+        'historial': FieldValue.arrayUnion([nuevoEvento]),
+        'ultimaActualizacion': FieldValue.serverTimestamp(),
+      });
 
-    setState(() {
-      _reparacion!['estado'] = nuevoEstado;
-      _reparacion!['historial'].add(nuevoEvento);
-    });
+      setState(() {
+        _reparacion!['estado'] = _estadoSeleccionado;
+        _detalleController.clear();
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Estado actualizado a: $nuevoEstado')),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✅ Estado actualizado a: $_estadoSeleccionado')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error: ${e.toString()}')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Panel Admin - Gestión Rápida'),
+        title: Text(
+          'Panel Administrativo',
+          style: GoogleFonts.notoSans(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.pink[600],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => FirebaseAuth.instance.signOut(),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Buscador
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: 'Código de reparación',
+                labelText: 'Buscar por código de reparación',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: _buscarReparacion,
@@ -85,79 +124,79 @@ class _AdminPanelState extends State<AdminPanel> {
             ),
             const SizedBox(height: 20),
 
-            // Tarjeta de información
             if (_reparacion != null) ...[
               Card(
+                elevation: 3,
                 child: Padding(
                   padding: const EdgeInsets.all(15),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Modelo: ${_reparacion!['modelo']}'),
+                      Text('Cliente: ${_reparacion!['nombre'] ?? 'No especificado'}',
+                          style: const TextStyle(fontSize: 18)),
                       Text('DNI: ${_reparacion!['dni']}'),
+                      Text('Teléfono: ${_reparacion!['telefono'] ?? 'No especificado'}'),
+                      const SizedBox(height: 10),
+                      Text('Equipo: ${_reparacion!['marca']} ${_reparacion!['modelo']}'),
+                      Text('Problema: ${_reparacion!['problema']}'),
+                      const SizedBox(height: 10),
                       Text('Estado actual: ${_reparacion!['estado']}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _getColorEstado(_reparacion!['estado']),
+                          )),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
 
-              // Botones de acción rápida
-              const Text('Actualizar estado:',
-                  style: TextStyle(fontSize: 18)),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _buildEstadoButton('Recibido', Colors.blue),
-                  _buildEstadoButton('En reparación', Colors.orange),
-                  _buildEstadoButton('Listo para retirar', Colors.green),
-                ],
+              DropdownButtonFormField<String>(
+                value: _estadoSeleccionado,
+                items: _estados.map((estado) {
+                  return DropdownMenuItem(
+                    value: estado,
+                    child: Text(estado),
+                  );
+                }).toList(),
+                onChanged: (value) => setState(() => _estadoSeleccionado = value!),
+                decoration: const InputDecoration(labelText: 'Nuevo estado'),
               ),
-              const SizedBox(height: 30),
-
-              // Historial simplificado
-              const Text('Última actualización:',
-                  style: TextStyle(fontSize: 16)),
-              if (_reparacion!['historial'].isNotEmpty)
-                ..._reparacion!['historial'].reversed.take(3).map((evento) =>
-                    ListTile(
-                      leading: _getEstadoIcon(evento['etapa']),
-                      title: Text(evento['etapa']),
-                      subtitle: Text('${evento['detalle']}\n${evento['fecha'].toDate().toString()}'),
-                    ),
-                ).toList(),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _detalleController,
+                decoration: const InputDecoration(
+                  labelText: 'Detalles del estado',
+                  hintText: 'Ej: "Se reemplazó la pantalla"',
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _actualizarEstado,
+                child: const Text('Actualizar Estado'),
+              ),
             ],
-            if (_isLoading) const CircularProgressIndicator(),
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEstadoButton(String estado, Color color) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-      ),
-      onPressed: () => _actualizarEstado(estado),
-      child: Text(estado),
-    );
-  }
-
-  Widget _getEstadoIcon(String etapa) {
-    switch (etapa.toLowerCase()) {
-      case 'recibido':
-        return const Icon(Icons.inventory, color: Colors.blue);
-      case 'en reparación':
-        return const Icon(Icons.build, color: Colors.orange);
-      case 'listo para retirar':
-        return const Icon(Icons.check_circle, color: Colors.green);
+  Color _getColorEstado(String estado) {
+    switch (estado) {
+      case 'En revisión':
+        return Colors.blue;
+      case 'En reparación':
+        return Colors.orange;
+      case 'Esperando repuesto':
+        return Colors.purple;
+      case 'Listo para retirar':
+        return Colors.green;
+      case 'Entregado':
+        return Colors.grey;
       default:
-        return const Icon(Icons.info);
+        return Colors.black;
     }
   }
 }

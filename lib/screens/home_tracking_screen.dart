@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:tu_app/services/firestore_service.dart';
+
 
 class HomeTrackingScreen extends StatefulWidget {
   const HomeTrackingScreen({super.key});
@@ -12,17 +15,29 @@ class HomeTrackingScreen extends StatefulWidget {
 class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
   final _dniController = TextEditingController();
   final _codigoController = TextEditingController();
-  bool isLoading = false;
-  String? message;
-  Map<String, dynamic>? reparacion;
+  bool _isLoading = false;
+  String? _message;
+  Map<String, dynamic>? _reparacion;
   bool _showTracking = false;
+  bool _mostrarNotificacion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkNotificaciones();
+  }
+
+  Future<void> _checkNotificaciones() async {
+    // Implementar lógica para verificar notificaciones pendientes
+  }
 
   Future<void> _consultarReparacion() async {
     setState(() {
-      message = null;
-      reparacion = null;
-      isLoading = true;
+      _isLoading = true;
+      _message = null;
+      _reparacion = null;
       _showTracking = false;
+      _mostrarNotificacion = false;
     });
 
     final codigo = _codigoController.text.trim();
@@ -30,125 +45,51 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
 
     if (codigo.isEmpty || dni.isEmpty) {
       setState(() {
-        message = 'Por favor completa ambos campos';
-        isLoading = false;
+        _message = 'Por favor completa ambos campos';
+        _isLoading = false;
       });
       return;
     }
 
-    final doc = await FirebaseFirestore.instance
-        .collection('reparaciones')
-        .doc(codigo)
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .doc(codigo)
+          .get();
 
-    if (!doc.exists) {
+      if (!doc.exists) {
+        setState(() {
+          _message = '❌ Reparación no encontrada';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final data = doc.data()!;
+      if (data['dni'] != dni) {
+        setState(() {
+          _message = '⚠️ DNI incorrecto para ese código';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      if (data['estado'] == 'Listo para retirar') {
+        _mostrarNotificacion = true;
+      }
+
       setState(() {
-        message = '❌ Reparación no encontrada';
-        isLoading = false;
+        _reparacion = data;
+        _isLoading = false;
+        _showTracking = true;
       });
-      return;
-    }
 
-    final data = doc.data()!;
-    if (data['dni'] != dni) {
+    } catch (e) {
       setState(() {
-        message = '⚠️ DNI incorrecto para ese código';
-        isLoading = false;
+        _message = 'Error al conectar con el servidor';
+        _isLoading = false;
       });
-      return;
     }
-
-    setState(() {
-      reparacion = data;
-      isLoading = false;
-      _showTracking = true;
-    });
-  }
-
-  @override
-  void dispose() {
-    _codigoController.dispose();
-    _dniController.dispose();
-    super.dispose();
-  }
-
-  Widget _buildPhoneIcon() {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Icon(Icons.phone_android, size: 120, color: Colors.pink[100]),
-        Icon(Icons.construction, size: 60, color: Colors.pink[300]),
-      ],
-    );
-  }
-
-  Widget _buildTimelineStep(String etapa, int index, bool isLast) {
-    final etapas = ['Recibido', 'En tratamiento', 'Arreglado', 'Listo para retirar'];
-    final iconos = [
-      Icons.inventory,
-      Icons.build,
-      Icons.check_circle,
-      Icons.local_shipping
-    ];
-    final colores = [
-      Colors.pink[300]!,
-      Colors.pink[400]!,
-      Colors.pink[500]!,
-      Colors.pink[600]!
-    ];
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: colores[index % colores.length],
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(iconos[index % iconos.length], color: Colors.white),
-              ),
-            ),
-            if (!isLast)
-              Container(
-                width: 3,
-                height: 60,
-                color: Colors.pink[200],
-              ),
-          ],
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  etapas[index % etapas.length],
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.pink[800],
-                  ),
-                ),
-                Text(
-                  etapa,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.pink[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildConsultaForm() {
@@ -157,7 +98,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      color: Colors.teal,
+      color: Colors.teal[400],
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Column(
@@ -175,11 +116,14 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
               controller: _codigoController,
               decoration: InputDecoration(
                 labelText: 'Código de reparación',
-                labelStyle: TextStyle(color: Colors.pink[800]),
+                labelStyle: const TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
                 ),
-                prefixIcon: Icon(Icons.code, color: Colors.pink),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.3),
+                prefixIcon: const Icon(Icons.confirmation_number, color: Colors.white),
               ),
             ),
             const SizedBox(height: 16),
@@ -187,11 +131,14 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
               controller: _dniController,
               decoration: InputDecoration(
                 labelText: 'DNI del cliente',
-                labelStyle: TextStyle(color: Colors.pink[800]),
+                labelStyle: const TextStyle(color: Colors.white70),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
                 ),
-                prefixIcon: Icon(Icons.person, color: Colors.pink),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.3),
+                prefixIcon: const Icon(Icons.person, color: Colors.white),
               ),
               keyboardType: TextInputType.number,
             ),
@@ -199,7 +146,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isLoading ? null : _consultarReparacion,
+                onPressed: _isLoading ? null : _consultarReparacion,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.pink[400],
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -207,7 +154,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: isLoading
+                child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
                   'CONSULTAR ESTADO',
@@ -218,20 +165,20 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
                 ),
               ),
             ),
-            if (message != null) ...[
+            if (_message != null) ...[
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: message!.startsWith('❌') || message!.startsWith('⚠️')
+                  color: _message!.startsWith('❌') || _message!.startsWith('⚠️')
                       ? Colors.red[50]
                       : Colors.green[50],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  message!,
+                  _message!,
                   style: TextStyle(
-                    color: message!.startsWith('❌') || message!.startsWith('⚠️')
+                    color: _message!.startsWith('❌') || _message!.startsWith('⚠️')
                         ? Colors.red[800]
                         : Colors.green[800],
                   ),
@@ -245,7 +192,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
               child: Text(
                 'Acceso Administrador',
                 style: TextStyle(
-                  color: Colors.pink[600],
+                  color: Colors.white,
                   decoration: TextDecoration.underline,
                 ),
               ),
@@ -256,27 +203,106 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
     );
   }
 
-  Widget _buildTrackingInfo() {
-    final historial = (reparacion?['historial'] as List?) ?? [];
+  Widget _buildPhoneIcon() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.phone_android, size: 120, color: Colors.pink[100]),
+        Icon(Icons.construction, size: 60, color: Colors.pink[300]),
+      ],
+    );
+  }
 
+  Widget _buildTimelineStep(String etapa, int index, bool isLast) {
+    final etapas = ['Recibido', 'En revisión', 'En reparación', 'Listo para retirar'];
+    final iconos = [
+      Icons.inventory,
+      Icons.search,
+      Icons.build,
+      Icons.check_circle
+    ];
+    final colores = [
+      Colors.blue[400]!,
+      Colors.orange[400]!,
+      Colors.deepOrange[400]!,
+      Colors.green[400]!
+    ];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: colores[index],
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(iconos[index], color: Colors.white, size: 24),
+              ),
+            ),
+            if (!isLast)
+              Container(
+                width: 3,
+                height: 60,
+                color: Colors.grey[300],
+              ),
+          ],
+        ),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  etapas[index],
+                  style: GoogleFonts.notoSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  etapa,
+                  style: GoogleFonts.notoSans(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrackingInfo() {
+    final historial = (_reparacion?['historial'] as List?) ?? [];
     final pasosCompletos = historial.length;
     final pasosTotales = 4;
     final pasosFaltantes = pasosTotales - pasosCompletos;
 
     final todosPasos = [
-      ...historial.map((e) => e.toString()),
+      ...historial.map((e) => e['detalle'] ?? 'Sin detalles'),
       for (int i = 0; i < pasosFaltantes; i++) 'Pendiente...'
     ].take(pasosTotales).toList();
 
     return Column(
       children: [
-        const SizedBox(height: 30),
+        const SizedBox(height: 20),
         _buildPhoneIcon(),
         const SizedBox(height: 20),
         Text(
-          '幸运龙维修跟踪', // "Seguimiento de Reparaciones Dragón de la Suerte"
+          'Seguimiento de Reparación',
           style: GoogleFonts.notoSans(
-            fontSize: 24,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: Colors.pink[800],
           ),
@@ -297,7 +323,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
                     Icon(Icons.phone_android, color: Colors.pink[400]),
                     const SizedBox(width: 15),
                     Text(
-                      'Modelo: ${reparacion?['modelo'] ?? 'No especificado'}',
+                      '${_reparacion?['marca'] ?? 'Marca'} ${_reparacion?['modelo'] ?? 'Modelo'}',
                       style: const TextStyle(fontSize: 16),
                     ),
                   ],
@@ -308,7 +334,22 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
                     Icon(Icons.info_outline, color: Colors.pink[400]),
                     const SizedBox(width: 15),
                     Text(
-                      'Estado: ${reparacion?['estado'] ?? 'No especificado'}',
+                      'Estado: ${_reparacion?['estado'] ?? 'No especificado'}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _getColorEstado(_reparacion?['estado']),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                Row(
+                  children: [
+                    Icon(Icons.confirmation_number, color: Colors.pink[400]),
+                    const SizedBox(width: 15),
+                    Text(
+                      'Código: ${_reparacion?['codigo'] ?? 'No especificado'}',
                       style: const TextStyle(fontSize: 16),
                     ),
                   ],
@@ -321,7 +362,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
         Text(
           'Progreso de tu reparación',
           style: GoogleFonts.notoSans(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Colors.pink[800],
           ),
@@ -351,7 +392,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
         ElevatedButton(
           onPressed: () => setState(() => _showTracking = false),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal[300],
+            backgroundColor: Colors.teal[400],
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -363,15 +404,85 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
     );
   }
 
+  Widget _buildNotificacionEquipoListo() {
+    return Card(
+      elevation: 6,
+      color: Colors.green[600],
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 40),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '¡TU EQUIPO ESTÁ LISTO!',
+                    style: GoogleFonts.notoSans(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    'Puedes pasar a retirarlo en nuestro local',
+                    style: GoogleFonts.notoSans(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => setState(() => _mostrarNotificacion = false),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLogoImage() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 30),
+      margin: const EdgeInsets.only(bottom: 20),
       child: Image.asset(
         'assets/images/logokraken.jpg',
-        width: 180,
+        width: 200,
         fit: BoxFit.contain,
       ),
     );
+  }
+
+  Color _getColorEstado(String? estado) {
+    switch (estado?.toLowerCase()) {
+      case 'en revisión':
+        return Colors.blue;
+      case 'en reparación':
+        return Colors.orange;
+      case 'listo para retirar':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatDate(dynamic fecha) {
+    if (fecha is String) {
+      try {
+        final dateTime = DateTime.parse(fecha);
+        return DateFormat('dd/MM/yyyy - HH:mm').format(dateTime);
+      } catch (e) {
+        return fecha;
+      }
+    }
+    return fecha.toString();
   }
 
   @override
@@ -386,7 +497,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.pinkAccent[600],
+        backgroundColor: Colors.pink[600],
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Container(
@@ -396,21 +507,40 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
             end: Alignment.bottomCenter,
             colors: [
               Colors.pink[50]!,
-              Colors.amber[100]!,
+              Colors.amber[50]!,
             ],
           ),
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              _buildLogoImage(),
-              if (!_showTracking) _buildConsultaForm(),
-              if (_showTracking) _buildTrackingInfo(),
-            ],
-          ),
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildLogoImage(),
+                  if (!_showTracking) _buildConsultaForm(),
+                  if (_showTracking) _buildTrackingInfo(),
+                ],
+              ),
+            ),
+            if (_mostrarNotificacion)
+              Positioned(
+                bottom: 20,
+                left: 20,
+                right: 20,
+                child: _buildNotificacionEquipoListo(),
+              ),
+          ],
         ),
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _dniController.dispose();
+    _codigoController.dispose();
+    super.dispose();
+  }
 }
+
