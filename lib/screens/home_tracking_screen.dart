@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:tu_app/services/firestore_service.dart';
-
 
 class HomeTrackingScreen extends StatefulWidget {
   const HomeTrackingScreen({super.key});
@@ -14,7 +12,6 @@ class HomeTrackingScreen extends StatefulWidget {
 
 class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
   final _dniController = TextEditingController();
-  final _codigoController = TextEditingController();
   bool _isLoading = false;
   String? _message;
   Map<String, dynamic>? _reparacion;
@@ -24,11 +21,8 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
   @override
   void initState() {
     super.initState();
-    _checkNotificaciones();
-  }
-
-  Future<void> _checkNotificaciones() async {
-    // Implementar lógica para verificar notificaciones pendientes
+    // Si querés manejar notificaciones, implementá esta función
+    //_checkNotificaciones();
   }
 
   Future<void> _consultarReparacion() async {
@@ -40,39 +34,33 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
       _mostrarNotificacion = false;
     });
 
-    final codigo = _codigoController.text.trim();
     final dni = _dniController.text.trim();
 
-    if (codigo.isEmpty || dni.isEmpty) {
+    if (dni.isEmpty) {
       setState(() {
-        _message = 'Por favor completa ambos campos';
+        _message = 'Por favor ingresa tu DNI';
         _isLoading = false;
       });
       return;
     }
 
     try {
-      final doc = await FirebaseFirestore.instance
+      final querySnapshot = await FirebaseFirestore.instance
           .collection('reparaciones')
-          .doc(codigo)
+          .where('dni', isEqualTo: dni)
+          .limit(1)
           .get();
 
-      if (!doc.exists) {
+      if (querySnapshot.docs.isEmpty) {
         setState(() {
-          _message = '❌ Reparación no encontrada';
+          _message = '❌ No se encontró ninguna reparación para ese DNI';
           _isLoading = false;
         });
         return;
       }
 
-      final data = doc.data()!;
-      if (data['dni'] != dni) {
-        setState(() {
-          _message = '⚠️ DNI incorrecto para ese código';
-          _isLoading = false;
-        });
-        return;
-      }
+      final doc = querySnapshot.docs.first;
+      final data = doc.data();
 
       if (data['estado'] == 'Listo para retirar') {
         _mostrarNotificacion = true;
@@ -83,7 +71,6 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
         _isLoading = false;
         _showTracking = true;
       });
-
     } catch (e) {
       setState(() {
         _message = 'Error al conectar con el servidor';
@@ -112,21 +99,6 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            TextField(
-              controller: _codigoController,
-              decoration: InputDecoration(
-                labelText: 'Código de reparación',
-                labelStyle: const TextStyle(color: Colors.white70),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.3),
-                prefixIcon: const Icon(Icons.confirmation_number, color: Colors.white),
-              ),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: _dniController,
               decoration: InputDecoration(
@@ -363,184 +335,89 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> {
           'Progreso de tu reparación',
           style: GoogleFonts.notoSans(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.pink[800],
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
           ),
         ),
         const SizedBox(height: 20),
-        Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          color: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                for (int i = 0; i < todosPasos.length; i++)
-                  _buildTimelineStep(
-                    todosPasos[i],
-                    i,
-                    i == todosPasos.length - 1,
+        for (int i = 0; i < todosPasos.length; i++)
+          _buildTimelineStep(todosPasos[i], i, i == todosPasos.length - 1),
+        const SizedBox(height: 30),
+        if (_mostrarNotificacion)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.green[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '✅ Tu equipo está listo para retirar, ¡gracias por confiar en nosotros!',
+                    style: TextStyle(color: Colors.green),
                   ),
+                ),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 30),
+        const SizedBox(height: 20),
         ElevatedButton(
-          onPressed: () => setState(() => _showTracking = false),
+          onPressed: () {
+            setState(() {
+              _showTracking = false;
+              _dniController.clear();
+              _message = null;
+            });
+          },
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal[400],
+            backgroundColor: Colors.pink[400],
+            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
           ),
-          child: const Text('Nueva Consulta', style: TextStyle(color: Colors.white)),
-        ),
+          child: Text(
+            'CONSULTAR OTRO',
+            style: GoogleFonts.notoSans(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        )
       ],
     );
   }
 
-  Widget _buildNotificacionEquipoListo() {
-    return Card(
-      elevation: 6,
-      color: Colors.green[600],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white, size: 40),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '¡TU EQUIPO ESTÁ LISTO!',
-                    style: GoogleFonts.notoSans(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Text(
-                    'Puedes pasar a retirarlo en nuestro local',
-                    style: GoogleFonts.notoSans(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: () => setState(() => _mostrarNotificacion = false),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogoImage() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      child: Image.asset(
-        'assets/images/logokraken.jpg',
-        width: 200,
-        fit: BoxFit.contain,
-      ),
-    );
-  }
-
-  Color _getColorEstado(String? estado) {
-    switch (estado?.toLowerCase()) {
-      case 'en revisión':
-        return Colors.blue;
-      case 'en reparación':
-        return Colors.orange;
-      case 'listo para retirar':
-        return Colors.green;
+  Color? _getColorEstado(String? estado) {
+    switch (estado) {
+      case 'Recibido':
+        return Colors.blue[600];
+      case 'En revisión':
+        return Colors.orange[600];
+      case 'En reparación':
+        return Colors.deepOrange[600];
+      case 'Listo para retirar':
+        return Colors.green[600];
       default:
-        return Colors.grey;
+        return Colors.grey[600];
     }
-  }
-
-  String _formatDate(dynamic fecha) {
-    if (fecha is String) {
-      try {
-        final dateTime = DateTime.parse(fecha);
-        return DateFormat('dd/MM/yyyy - HH:mm').format(dateTime);
-      } catch (e) {
-        return fecha;
-      }
-    }
-    return fecha.toString();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'KRAKEN REPARACIONES',
-          style: GoogleFonts.notoSans(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+      backgroundColor: Colors.teal[50],
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: _showTracking ? _buildTrackingInfo() : _buildConsultaForm(),
           ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.pink[600],
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.pink[50]!,
-              Colors.amber[50]!,
-            ],
-          ),
-        ),
-        child: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _buildLogoImage(),
-                  if (!_showTracking) _buildConsultaForm(),
-                  if (_showTracking) _buildTrackingInfo(),
-                ],
-              ),
-            ),
-            if (_mostrarNotificacion)
-              Positioned(
-                bottom: 20,
-                left: 20,
-                right: 20,
-                child: _buildNotificacionEquipoListo(),
-              ),
-          ],
         ),
       ),
     );
   }
-
-  @override
-  void dispose() {
-    _dniController.dispose();
-    _codigoController.dispose();
-    super.dispose();
-  }
 }
-
