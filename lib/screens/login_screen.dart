@@ -1,143 +1,178 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String? errorMessage;
+
   bool isLoading = false;
-  final _formKey = GlobalKey<FormState>();
+  String? errorMessage;
+
+  late AnimationController _animationController;
+  late Animation<Color?> _color1;
+  late Animation<Color?> _color2;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat(reverse: true);
+
+    _color1 = ColorTween(
+      begin: const Color(0xFFF8BBD0),
+      end: const Color(0xFFE1BEE7),
+    ).animate(_animationController);
+
+    _color2 = ColorTween(
+      begin: const Color(0xFFFCE4EC),
+      end: const Color(0xFFF48FB1),
+    ).animate(_animationController);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
-
     setState(() {
-      errorMessage = null;
       isLoading = true;
+      errorMessage = null;
     });
 
     try {
-      final email = _emailController.text.trim().toLowerCase();
-      final password = _passwordController.text.trim();
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
-      final credential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password);
-
-      const allowedAdmins = [
-        'dominguezmariajimena@gmail.com',
-        'equiz.rec@gmail.com'
-      ];
-
-      if (!allowedAdmins.contains(credential.user?.email?.toLowerCase())) {
-        await FirebaseAuth.instance.signOut();
-        setState(() {
-          errorMessage = 'No tienes permisos de administrador';
-          isLoading = false;
-        });
-        return;
+      // Redirigir al panel admin
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/admin/panel');
       }
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/admin/panel');
     } on FirebaseAuthException catch (e) {
       setState(() {
-        errorMessage = switch (e.code) {
-          'invalid-email' => 'Email inválido',
-          'user-disabled' => 'Usuario deshabilitado',
-          'user-not-found' || 'wrong-password' =>
-          'Email o contraseña incorrectos',
-          'too-many-requests' => 'Demasiados intentos. Intenta más tarde',
-          _ => 'Error: ${e.message}',
-        };
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        errorMessage = 'Error inesperado: ${e.toString()}';
+        switch (e.code) {
+          case 'user-not-found':
+            errorMessage = 'No se encontró un usuario con ese correo.';
+            break;
+          case 'wrong-password':
+            errorMessage = 'Contraseña incorrecta.';
+            break;
+          default:
+            errorMessage = 'Error: ${e.message}';
+        }
         isLoading = false;
       });
     }
   }
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.pink[50],
-      appBar: AppBar(
-        title: const Text('Acceso Administrador'),
-        backgroundColor: Colors.pink[600],
-      ),
-      body: Center(
-        child: Card(
-          elevation: 4,
-          margin: const EdgeInsets.all(24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset('assets/images/logokraken.jpg', width: 120),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) =>
-                    value == null || !value.contains('@')
-                        ? 'Ingresa un email válido'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Contraseña'),
-                    validator: (value) =>
-                    value == null || value.length < 6
-                        ? 'Mínimo 6 caracteres'
-                        : null,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: isLoading ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.pink[400],
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Ingresar'),
-                    ),
-                  ),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      errorMessage!,
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                  ]
-                ],
+      body: AnimatedBuilder(
+        animation: _animationController,
+        builder: (context, child) {
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_color1.value!, _color2.value!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+            ),
+            child: child,
+          );
+        },
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Column(
+              children: [
+                Container(
+                  width: 160,
+                  height: 160,
+                  decoration: const BoxDecoration(
+                    image: DecorationImage(
+                      image: AssetImage('assets/images/logokraken.jpg'),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  'LOGIN ADMIN',
+                  style: GoogleFonts.notoSans(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal[900],
+                  ),
+                ),
+                const SizedBox(height: 40),
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.email),
+                    labelText: 'Correo electrónico',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.lock),
+                    labelText: 'Contraseña',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal[700],
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                      'INGRESAR',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    errorMessage!,
+                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

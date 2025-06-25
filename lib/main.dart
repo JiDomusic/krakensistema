@@ -22,75 +22,32 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'KRAKEN Reparaciones',
-      theme: ThemeData(
-        primarySwatch: Colors.teal,
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        textTheme: Theme.of(context).textTheme.apply(
-          fontFamily: 'NotoSans',
-          bodyColor: Colors.teal[900],
-          displayColor: Colors.teal[900],
-        ),
-      ),
+      title: 'Kraken Reparaciones',
+      theme: ThemeData(primarySwatch: Colors.teal),
       initialRoute: '/',
       routes: {
         '/': (context) => const HomeTrackingScreen(),
         '/admin/login': (context) => const LoginScreen(),
-        '/admin/panel': (context) => const AdminAccessGuard(),
+        '/admin/panel': (context) => const AdminGuard(child: AdminPanel()),
       },
     );
   }
 }
 
-/// Protege el acceso al panel del admin
-class AdminAccessGuard extends StatelessWidget {
-  const AdminAccessGuard({super.key});
+class AdminGuard extends StatelessWidget {
+  final Widget child;
+  const AdminGuard({required this.child, super.key});
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    final user = FirebaseAuth.instance.currentUser;
 
-        final user = snapshot.data;
+    if (user == null) {
+      // Si no está logueado, manda al login
+      Future.microtask(() => Navigator.pushReplacementNamed(context, '/admin/login'));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-        if (user == null) {
-          Future.microtask(() {
-            Navigator.pushReplacementNamed(context, '/admin/login');
-          });
-          return const SizedBox.shrink();
-        }
-
-        const allowedAdmins = [
-          'dominguezmariajimena@gmail.com',
-          'equiz.rec@gmail.com',
-        ];
-
-        if (allowedAdmins.contains(user.email?.toLowerCase())) {
-          return const AdminPanel();
-        } else {
-          FirebaseAuth.instance.signOut();
-          return const Scaffold(
-            body: Center(
-              child: Text(
-                '🚫 Acceso denegado.\nSolo administradores autorizados.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          );
-        }
-      },
-    );
+    return child;
   }
 }

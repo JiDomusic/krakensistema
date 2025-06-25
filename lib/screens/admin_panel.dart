@@ -1,5 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminPanel extends StatefulWidget {
   const AdminPanel({super.key});
@@ -9,504 +10,234 @@ class AdminPanel extends StatefulWidget {
 }
 
 class _AdminPanelState extends State<AdminPanel> {
-  final _formKey = GlobalKey<FormState>();
   final _codigoController = TextEditingController();
-  final _dniController = TextEditingController();
-  final _marcaController = TextEditingController();
-  final _modeloController = TextEditingController();
-  final _detalleEstadoController = TextEditingController();
-
-  Map<String, dynamic>? _reparacion;
-  bool _isLoading = false;
-  bool _isSaving = false;
-
-  Future<void> _agregarReparacion() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final codigo = _codigoController.text.trim();
-
-      final data = {
-        'codigo': codigo,
-        'dni': _dniController.text.trim(),
-        'marca': _marcaController.text.trim(),
-        'modelo': _modeloController.text.trim(),
-        'estado': 'Recibido',
-        'fecha': FieldValue.serverTimestamp(),
-        'historial': [],
-      };
-
-      await FirebaseFirestore.instance
-          .collection('reparaciones')
-          .doc(codigo)
-          .set(data);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Reparación guardada en Firestore!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        _clearInputs();
-      }
-    }
-  }
+  bool isLoading = false;
+  String? message;
+  Map<String, dynamic>? reparacionData;
 
   Future<void> _buscarReparacion() async {
     final codigo = _codigoController.text.trim();
-    if (codigo.isEmpty) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('reparaciones')
-          .doc(codigo)
-          .get();
-
-      if (!doc.exists) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('❌ Reparación no encontrada')),
-          );
-        }
-        setState(() => _reparacion = null);
-        return;
-      }
-
+    if (codigo.isEmpty) {
       setState(() {
-        _reparacion = doc.data();
-        _reparacion!['id'] = doc.id;
-        _dniController.text = _reparacion?['dni'] ?? '';
-        _marcaController.text = _reparacion?['marca'] ?? '';
-        _modeloController.text = _reparacion?['modelo'] ?? '';
+        message = '⚠️ Ingresa el código de reparación';
+        reparacionData = null;
       });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _actualizarEstado(String estado) async {
-    if (_reparacion == null) return;
-    if (_detalleEstadoController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('📝 Por favor agrega un detalle')),
-      );
       return;
     }
 
-    setState(() => _isSaving = true);
+    setState(() {
+      isLoading = true;
+      message = null;
+    });
 
     try {
-      final docId = _reparacion!['id'];
-      final nuevoEvento = {
-        'etapa': estado,
-        'detalle': _detalleEstadoController.text.trim(),
-        'fecha': FieldValue.serverTimestamp(),
-      };
-
-      await FirebaseFirestore.instance
-          .collection('reparaciones')
-          .doc(docId)
-          .update({
-        'estado': estado,
-        'historial': FieldValue.arrayUnion([nuevoEvento]),
+      final doc = await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).get();
+      if (!doc.exists) {
+        setState(() {
+          message = '❌ Reparación no encontrada';
+          reparacionData = null;
+        });
+      } else {
+        setState(() {
+          reparacionData = doc.data();
+          message = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        message = '❌ Error: $e';
+        reparacionData = null;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('🔥 Estado actualizado a: $estado'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _detalleEstadoController.clear();
-        _buscarReparacion();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
-      }
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  Future<void> _eliminarReparacion() async {
-    if (_reparacion == null) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final docId = _reparacion!['id'];
-      await FirebaseFirestore.instance
-          .collection('reparaciones')
-          .doc(docId)
-          .delete();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🗑️ Reparación eliminada'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() => _reparacion = null);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  Future<void> _editarReparacion() async {
-    if (_reparacion == null) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final docId = _reparacion!['id'];
-      await FirebaseFirestore.instance
-          .collection('reparaciones')
-          .doc(docId)
-          .update({
-        'dni': _dniController.text.trim(),
-        'marca': _marcaController.text.trim(),
-        'modelo': _modeloController.text.trim(),
+      setState(() {
+        isLoading = false;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✏️ Datos actualizados!'),
-            backgroundColor: Colors.blue,
-          ),
-        );
-        _buscarReparacion();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
     }
   }
 
-  void _clearInputs() {
-    _codigoController.clear();
-    _dniController.clear();
-    _marcaController.clear();
-    _modeloController.clear();
+  Future<void> _cambiarEstado(String nuevoEstado) async {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty) return;
+
+    setState(() {
+      isLoading = true;
+      message = null;
+    });
+
+    try {
+      final docRef = FirebaseFirestore.instance.collection('reparaciones').doc(codigo);
+      await docRef.update({'estado': nuevoEstado});
+      _buscarReparacion(); // Actualizar vista
+      setState(() {
+        message = '✅ Estado actualizado a "$nuevoEstado"';
+      });
+    } catch (e) {
+      setState(() {
+        message = '❌ Error al actualizar: $e';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
-  Widget _buildHistorial(List historial) {
-    return Column(
-      children: historial.reversed.map<Widget>((evento) {
-        final fecha = (evento['fecha'] as Timestamp?)?.toDate();
-        final fechaStr = fecha != null
-            ? '${fecha.day}/${fecha.month} ${fecha.hour}:${fecha.minute.toString().padLeft(2, '0')}'
-            : 'sin fecha';
-
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 5),
-          child: ListTile(
-            leading: Icon(_getEstadoIcon(evento['etapa'])),
-            title: Text(
-              evento['etapa'] ?? '',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text('${evento['detalle']}\n$fechaStr'),
-            tileColor: _getEstadoColor(evento['etapa']).withOpacity(0.1),
-          ),
-        );
-      }).toList(),
+  Widget _buildInfoTile(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.teal[900]),
+        const SizedBox(width: 10),
+        Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+        Expanded(child: Text(value)),
+      ],
     );
   }
 
-  IconData _getEstadoIcon(String? estado) {
-    switch (estado) {
-      case 'Recibido':
-        return Icons.inventory;
-      case 'En revisión':
-        return Icons.build;
-      case 'Listo para retirar':
-        return Icons.check_circle;
-      default:
-        return Icons.history;
-    }
-  }
-
-  Color _getEstadoColor(String? estado) {
-    switch (estado) {
-      case 'Recibido':
-        return Colors.blue;
-      case 'En revisión':
-        return Colors.orange;
-      case 'Listo para retirar':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
+  Widget _buildTrackingStep(String label, bool isActive) {
+    return Row(
+      children: [
+        Icon(
+          isActive ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: isActive ? Colors.green : Colors.grey,
+        ),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(color: isActive ? Colors.black : Colors.grey)),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final historial = _reparacion?['historial'] ?? [];
+    final estadoActual = reparacionData?['estado'];
 
     return Scaffold(
+      backgroundColor: const Color(0xFFE0F7FA), // celeste suave tipo tea
       appBar: AppBar(
-        title: const Text('Panel Admin - Kraken Reparaciones'),
         backgroundColor: Colors.teal[700],
-        centerTitle: true,
+        title: const Text('Panel Admin'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              Navigator.pushReplacementNamed(context, '/');
+            },
+          )
+        ],
       ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  // Formulario de datos
-                  Card(
-                    elevation: 3,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // Logo centrado
+            Center(
+              child: Image.asset(
+                'assets/images/logokraken.jpg',
+                width: 120,
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            TextField(
+              controller: _codigoController,
+              decoration: InputDecoration(
+                labelText: 'Código de reparación',
+                prefixIcon: const Icon(Icons.qr_code),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onSubmitted: (_) => _buscarReparacion(),
+            ),
+
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: isLoading ? null : _buscarReparacion,
+                icon: const Icon(Icons.search),
+                label: const Text('Buscar reparación'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal[800],
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            if (reparacionData != null) ...[
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                color: Colors.white.withOpacity(0.95),
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildInfoTile(Icons.precision_manufacturing, 'Marca', reparacionData!['marca'] ?? '—'),
+                      const SizedBox(height: 10),
+                      _buildInfoTile(Icons.phone_android, 'Modelo', reparacionData!['modelo'] ?? '—'),
+                      const SizedBox(height: 10),
+                      _buildInfoTile(Icons.info_outline, 'Estado actual', estadoActual ?? '—'),
+
+                      const SizedBox(height: 20),
+                      const Divider(),
+
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          TextFormField(
-                            controller: _codigoController,
-                            decoration: const InputDecoration(
-                              labelText: 'Código de reparación',
-                              prefixIcon: Icon(Icons.code),
-                            ),
-                            validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                          _buildTrackingStep('Recibido', estadoActual == 'Recibido' || estadoActual == 'En revisión' || estadoActual == 'Listo para retirar'),
+                          const SizedBox(height: 8),
+                          _buildTrackingStep('En revisión', estadoActual == 'En revisión' || estadoActual == 'Listo para retirar'),
+                          const SizedBox(height: 8),
+                          _buildTrackingStep('Listo para retirar', estadoActual == 'Listo para retirar'),
+                        ],
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          ElevatedButton(
+                            onPressed: isLoading ? null : () => _cambiarEstado('Recibido'),
+                            child: const Text('Recibido'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
                           ),
-                          const SizedBox(height: 15),
-                          TextFormField(
-                            controller: _dniController,
-                            decoration: const InputDecoration(
-                              labelText: 'DNI del cliente',
-                              prefixIcon: Icon(Icons.person),
-                            ),
-                            validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                          ElevatedButton(
+                            onPressed: isLoading ? null : () => _cambiarEstado('En revisión'),
+                            child: const Text('En revisión'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
                           ),
-                          const SizedBox(height: 15),
-                          TextFormField(
-                            controller: _marcaController,
-                            decoration: const InputDecoration(
-                              labelText: 'Marca',
-                              prefixIcon: Icon(Icons.phone_android),
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-                          TextFormField(
-                            controller: _modeloController,
-                            decoration: const InputDecoration(
-                              labelText: 'Modelo',
-                              prefixIcon: Icon(Icons.devices),
-                            ),
+                          ElevatedButton(
+                            onPressed: isLoading ? null : () => _cambiarEstado('Listo para retirar'),
+                            child: const Text('Listo para retirar'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.search),
-                          label: const Text('Buscar'),
-                          onPressed: _isLoading ? null : _buscarReparacion,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.add),
-                          label: const Text('Agregar'),
-                          onPressed: _isSaving ? null : _agregarReparacion,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
-
-                  // Sección de reparación encontrada
-                  if (_reparacion != null) ...[
-                    const SizedBox(height: 30),
-                    Card(
-                      elevation: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          children: [
-                            ListTile(
-                              leading: const Icon(Icons.phone_android, size: 40),
-                              title: Text('${_reparacion!['marca']} ${_reparacion!['modelo']}'),
-                              subtitle: Text('Código: ${_reparacion!['codigo']}'),
-                            ),
-                            const Divider(),
-                            ListTile(
-                              leading: const Icon(Icons.person),
-                              title: const Text('Cliente'),
-                              subtitle: Text('DNI: ${_reparacion!['dni']}'),
-                            ),
-                            ListTile(
-                              leading: Icon(Icons.circle, color: _getEstadoColor(_reparacion!['estado'])),
-                              title: const Text('Estado actual'),
-                              subtitle: Text(
-                                _reparacion!['estado'],
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: _getEstadoColor(_reparacion!['estado']),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Actualizar estado
-                    const SizedBox(height: 20),
-                    Card(
-                      elevation: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          children: [
-                            const Text('Actualizar Estado',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 15),
-                            TextField(
-                              controller: _detalleEstadoController,
-                              decoration: const InputDecoration(
-                                labelText: 'Detalle del cambio',
-                                border: OutlineInputBorder(),
-                              ),
-                              maxLines: 2,
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(child: _buildEstadoButton('Recibido', Icons.inventory, Colors.blue)),
-                                const SizedBox(width: 10),
-                                Expanded(child: _buildEstadoButton('En revisión', Icons.build, Colors.orange)),
-                                const SizedBox(width: 10),
-                                Expanded(child: _buildEstadoButton('Listo para retirar', Icons.check_circle, Colors.green)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.edit),
-                            label: const Text('Editar'),
-                            onPressed: _isSaving ? null : _editarReparacion,
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.delete),
-                            label: const Text('Eliminar'),
-                            onPressed: _isSaving ? null : _eliminarReparacion,
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                    const Text(
-                      'Historial de Cambios',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    if (historial.isNotEmpty)
-                      _buildHistorial(historial)
-                    else
-                      const Text('No hay historial registrado'),
-                  ],
-                ],
+                ),
               ),
-            ),
-          ),
-          if (_isLoading || _isSaving)
-            Container(
-              color: Colors.black.withOpacity(0.4),
-              child: const Center(child: CircularProgressIndicator()),
-            ),
-        ],
-      ),
-    );
-  }
+            ],
 
-  Widget _buildEstadoButton(String texto, IconData icono, Color color) {
-    return ElevatedButton.icon(
-      icon: Icon(icono, color: Colors.white),
-      label: Text(texto, style: const TextStyle(color: Colors.white)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+            if (message != null) ...[
+              const SizedBox(height: 20),
+              Text(message!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: message!.startsWith('❌') ? Colors.red : Colors.green[700],
+                    fontWeight: FontWeight.bold,
+                  )),
+            ],
+          ],
+        ),
       ),
-      onPressed: () => _actualizarEstado(texto),
     );
   }
 }
