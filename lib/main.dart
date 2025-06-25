@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'firebase_options.dart';
 import 'screens/home_tracking_screen.dart';
-import 'screens/login_screen.dart' hide LoginScreen; // ← ¡Corregido!
+import 'screens/login_screen.dart';
 import 'screens/admin_panel.dart';
 
 void main() async {
@@ -22,10 +22,16 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'KRAKEN Sistema',
+      title: 'KRAKEN Reparaciones',
       theme: ThemeData(
-        primarySwatch: Colors.pink,
+        primarySwatch: Colors.teal,
         useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white,
+        textTheme: Theme.of(context).textTheme.apply(
+          fontFamily: 'NotoSans',
+          bodyColor: Colors.teal[900],
+          displayColor: Colors.teal[900],
+        ),
       ),
       initialRoute: '/',
       routes: {
@@ -37,7 +43,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Widget que protege el acceso al panel de administrador
+/// Protege el acceso al panel del admin
 class AdminAccessGuard extends StatelessWidget {
   const AdminAccessGuard({super.key});
 
@@ -55,8 +61,9 @@ class AdminAccessGuard extends StatelessWidget {
         final user = snapshot.data;
 
         if (user == null) {
-          Future.microtask(() =>
-              Navigator.pushReplacementNamed(context, '/admin/login'));
+          Future.microtask(() {
+            Navigator.pushReplacementNamed(context, '/admin/login');
+          });
           return const SizedBox.shrink();
         }
 
@@ -74,7 +81,11 @@ class AdminAccessGuard extends StatelessWidget {
               child: Text(
                 '🚫 Acceso denegado.\nSolo administradores autorizados.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.red, fontSize: 16),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           );

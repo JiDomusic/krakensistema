@@ -2,162 +2,511 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AdminPanel extends StatefulWidget {
-const AdminPanel({super.key});
+  const AdminPanel({super.key});
 
-@override
-State<AdminPanel> createState() => _AdminPanelState();
+  @override
+  State<AdminPanel> createState() => _AdminPanelState();
 }
 
 class _AdminPanelState extends State<AdminPanel> {
-final _searchController = TextEditingController();
-Map<String, dynamic>? _reparacion;
-bool _isLoading = false;
+  final _formKey = GlobalKey<FormState>();
+  final _codigoController = TextEditingController();
+  final _dniController = TextEditingController();
+  final _marcaController = TextEditingController();
+  final _modeloController = TextEditingController();
+  final _detalleEstadoController = TextEditingController();
 
-Future<void> _buscarReparacion() async {
-setState(() {
-_isLoading = true;
-_reparacion = null;
-});
+  Map<String, dynamic>? _reparacion;
+  bool _isLoading = false;
+  bool _isSaving = false;
 
-final snapshot = await FirebaseFirestore.instance
-    .collection('reparaciones')
-    .doc(_searchController.text.trim())
-    .get();
+  Future<void> _agregarReparacion() async {
+    if (!_formKey.currentState!.validate()) return;
 
-if (snapshot.exists) {
-setState(() => _reparacion = snapshot.data()!);
-} else {
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(content: Text('Reparación no encontrada')),
-);
-}
-setState(() => _isLoading = false);
-}
+    setState(() => _isSaving = true);
 
-Future<void> _actualizarEstado(String nuevoEstado) async {
-if (_reparacion == null) return;
+    try {
+      final codigo = _codigoController.text.trim();
 
-final nuevoEvento = {
-"etapa": nuevoEstado,
-"detalle": "Actualizado por administrador",
-"fecha": FieldValue.serverTimestamp(),
-};
+      final data = {
+        'codigo': codigo,
+        'dni': _dniController.text.trim(),
+        'marca': _marcaController.text.trim(),
+        'modelo': _modeloController.text.trim(),
+        'estado': 'Recibido',
+        'fecha': FieldValue.serverTimestamp(),
+        'historial': [],
+      };
 
-await FirebaseFirestore.instance
-    .collection('reparaciones')
-    .doc(_searchController.text.trim())
-    .update({
-"estado": nuevoEstado,
-"historial": FieldValue.arrayUnion([nuevoEvento]),
-});
+      await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .doc(codigo)
+          .set(data);
 
-setState(() {
-_reparacion!['estado'] = nuevoEstado;
-_reparacion!['historial'].add(nuevoEvento);
-});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Reparación guardada en Firestore!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _clearInputs();
+      }
+    }
+  }
 
-ScaffoldMessenger.of(context).showSnackBar(
-SnackBar(content: Text('Estado actualizado a: $nuevoEstado')),
-);
-}
+  Future<void> _buscarReparacion() async {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty) return;
 
-@override
-Widget build(BuildContext context) {
-return Scaffold(
-appBar: AppBar(
-title: const Text('Panel Admin - Gestión Rápida'),
-backgroundColor: Colors.pink[600],
-),
-body: Padding(
-padding: const EdgeInsets.all(20),
-child: Column(
-children: [
-// Buscador
-TextField(
-controller: _searchController,
-decoration: InputDecoration(
-labelText: 'Código de reparación',
-suffixIcon: IconButton(
-icon: const Icon(Icons.search),
-onPressed: _buscarReparacion,
-),
-),
-),
-const SizedBox(height: 20),
+    setState(() => _isLoading = true);
 
-// Tarjeta de información
-if (_reparacion != null) ...[
-Card(
-child: Padding(
-padding: const EdgeInsets.all(15),
-child: Column(
-crossAxisAlignment: CrossAxisAlignment.start,
-children: [
-Text('Modelo: ${_reparacion!['modelo']}'),
-Text('DNI: ${_reparacion!['dni']}'),
-Text('Estado actual: ${_reparacion!['estado']}',
-style: const TextStyle(fontWeight: FontWeight.bold)),
-],
-),
-),
-),
-const SizedBox(height: 30),
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .doc(codigo)
+          .get();
 
-// Botones de acción rápida
-const Text('Actualizar estado:',
-style: TextStyle(fontSize: 18)),
-const SizedBox(height: 10),
-Wrap(
-spacing: 10,
-runSpacing: 10,
-children: [
-_buildEstadoButton('Recibido', Colors.blue),
-_buildEstadoButton('En reparación', Colors.orange),
-_buildEstadoButton('Listo para retirar', Colors.green),
-],
-),
-const SizedBox(height: 30),
+      if (!doc.exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('❌ Reparación no encontrada')),
+          );
+        }
+        setState(() => _reparacion = null);
+        return;
+      }
 
-// Historial simplificado
-const Text('Última actualización:',
-style: TextStyle(fontSize: 16)),
-if (_reparacion!['historial'].isNotEmpty)
-..._reparacion!['historial'].reversed.take(3).map((evento) =>
-ListTile(
-leading: _getEstadoIcon(evento['etapa']),
-title: Text(evento['etapa']),
-subtitle: Text('${evento['detalle']}\n${evento['fecha'].toDate().toString()}'),
-),
-).toList(),
-],
-if (_isLoading) const CircularProgressIndicator(),
-],
-),
-),
-);
-}
+      setState(() {
+        _reparacion = doc.data();
+        _reparacion!['id'] = doc.id;
+        _dniController.text = _reparacion?['dni'] ?? '';
+        _marcaController.text = _reparacion?['marca'] ?? '';
+        _modeloController.text = _reparacion?['modelo'] ?? '';
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
-Widget _buildEstadoButton(String estado, Color color) {
-return ElevatedButton(
-style: ElevatedButton.styleFrom(
-backgroundColor: color,
-foregroundColor: Colors.white,
-),
-onPressed: () => _actualizarEstado(estado),
-child: Text(estado),
-);
-}
+  Future<void> _actualizarEstado(String estado) async {
+    if (_reparacion == null) return;
+    if (_detalleEstadoController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('📝 Por favor agrega un detalle')),
+      );
+      return;
+    }
 
-Widget _getEstadoIcon(String etapa) {
-switch (etapa.toLowerCase()) {
-case 'recibido':
-return const Icon(Icons.inventory, color: Colors.blue);
-case 'en reparación':
-return const Icon(Icons.build, color: Colors.orange);
-case 'listo para retirar':
-return const Icon(Icons.check_circle, color: Colors.green);
-default:
-return const Icon(Icons.info);
-}
-}
+    setState(() => _isSaving = true);
+
+    try {
+      final docId = _reparacion!['id'];
+      final nuevoEvento = {
+        'etapa': estado,
+        'detalle': _detalleEstadoController.text.trim(),
+        'fecha': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .doc(docId)
+          .update({
+        'estado': estado,
+        'historial': FieldValue.arrayUnion([nuevoEvento]),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🔥 Estado actualizado a: $estado'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _detalleEstadoController.clear();
+        _buscarReparacion();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _eliminarReparacion() async {
+    if (_reparacion == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final docId = _reparacion!['id'];
+      await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .doc(docId)
+          .delete();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🗑️ Reparación eliminada'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _reparacion = null);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _editarReparacion() async {
+    if (_reparacion == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final docId = _reparacion!['id'];
+      await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .doc(docId)
+          .update({
+        'dni': _dniController.text.trim(),
+        'marca': _marcaController.text.trim(),
+        'modelo': _modeloController.text.trim(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✏️ Datos actualizados!'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+        _buscarReparacion();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  void _clearInputs() {
+    _codigoController.clear();
+    _dniController.clear();
+    _marcaController.clear();
+    _modeloController.clear();
+  }
+
+  Widget _buildHistorial(List historial) {
+    return Column(
+      children: historial.reversed.map<Widget>((evento) {
+        final fecha = (evento['fecha'] as Timestamp?)?.toDate();
+        final fechaStr = fecha != null
+            ? '${fecha.day}/${fecha.month} ${fecha.hour}:${fecha.minute.toString().padLeft(2, '0')}'
+            : 'sin fecha';
+
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 5),
+          child: ListTile(
+            leading: Icon(_getEstadoIcon(evento['etapa'])),
+            title: Text(
+              evento['etapa'] ?? '',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text('${evento['detalle']}\n$fechaStr'),
+            tileColor: _getEstadoColor(evento['etapa']).withOpacity(0.1),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  IconData _getEstadoIcon(String? estado) {
+    switch (estado) {
+      case 'Recibido':
+        return Icons.inventory;
+      case 'En revisión':
+        return Icons.build;
+      case 'Listo para retirar':
+        return Icons.check_circle;
+      default:
+        return Icons.history;
+    }
+  }
+
+  Color _getEstadoColor(String? estado) {
+    switch (estado) {
+      case 'Recibido':
+        return Colors.blue;
+      case 'En revisión':
+        return Colors.orange;
+      case 'Listo para retirar':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final historial = _reparacion?['historial'] ?? [];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Panel Admin - Kraken Reparaciones'),
+        backgroundColor: Colors.teal[700],
+        centerTitle: true,
+      ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  // Formulario de datos
+                  Card(
+                    elevation: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _codigoController,
+                            decoration: const InputDecoration(
+                              labelText: 'Código de reparación',
+                              prefixIcon: Icon(Icons.code),
+                            ),
+                            validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                          ),
+                          const SizedBox(height: 15),
+                          TextFormField(
+                            controller: _dniController,
+                            decoration: const InputDecoration(
+                              labelText: 'DNI del cliente',
+                              prefixIcon: Icon(Icons.person),
+                            ),
+                            validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                          ),
+                          const SizedBox(height: 15),
+                          TextFormField(
+                            controller: _marcaController,
+                            decoration: const InputDecoration(
+                              labelText: 'Marca',
+                              prefixIcon: Icon(Icons.phone_android),
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          TextFormField(
+                            controller: _modeloController,
+                            decoration: const InputDecoration(
+                              labelText: 'Modelo',
+                              prefixIcon: Icon(Icons.devices),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.search),
+                          label: const Text('Buscar'),
+                          onPressed: _isLoading ? null : _buscarReparacion,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Agregar'),
+                          onPressed: _isSaving ? null : _agregarReparacion,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Sección de reparación encontrada
+                  if (_reparacion != null) ...[
+                    const SizedBox(height: 30),
+                    Card(
+                      elevation: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.phone_android, size: 40),
+                              title: Text('${_reparacion!['marca']} ${_reparacion!['modelo']}'),
+                              subtitle: Text('Código: ${_reparacion!['codigo']}'),
+                            ),
+                            const Divider(),
+                            ListTile(
+                              leading: const Icon(Icons.person),
+                              title: const Text('Cliente'),
+                              subtitle: Text('DNI: ${_reparacion!['dni']}'),
+                            ),
+                            ListTile(
+                              leading: Icon(Icons.circle, color: _getEstadoColor(_reparacion!['estado'])),
+                              title: const Text('Estado actual'),
+                              subtitle: Text(
+                                _reparacion!['estado'],
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: _getEstadoColor(_reparacion!['estado']),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Actualizar estado
+                    const SizedBox(height: 20),
+                    Card(
+                      elevation: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            const Text('Actualizar Estado',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 15),
+                            TextField(
+                              controller: _detalleEstadoController,
+                              decoration: const InputDecoration(
+                                labelText: 'Detalle del cambio',
+                                border: OutlineInputBorder(),
+                              ),
+                              maxLines: 2,
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(child: _buildEstadoButton('Recibido', Icons.inventory, Colors.blue)),
+                                const SizedBox(width: 10),
+                                Expanded(child: _buildEstadoButton('En revisión', Icons.build, Colors.orange)),
+                                const SizedBox(width: 10),
+                                Expanded(child: _buildEstadoButton('Listo para retirar', Icons.check_circle, Colors.green)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.edit),
+                            label: const Text('Editar'),
+                            onPressed: _isSaving ? null : _editarReparacion,
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.delete),
+                            label: const Text('Eliminar'),
+                            onPressed: _isSaving ? null : _eliminarReparacion,
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    const Text(
+                      'Historial de Cambios',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    if (historial.isNotEmpty)
+                      _buildHistorial(historial)
+                    else
+                      const Text('No hay historial registrado'),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (_isLoading || _isSaving)
+            Container(
+              color: Colors.black.withOpacity(0.4),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEstadoButton(String texto, IconData icono, Color color) {
+    return ElevatedButton.icon(
+      icon: Icon(icono, color: Colors.white),
+      label: Text(texto, style: const TextStyle(color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+      onPressed: () => _actualizarEstado(texto),
+    );
+  }
 }

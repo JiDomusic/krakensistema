@@ -27,7 +27,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'krakensitema.firebasestorage.app',
     messagingSenderId: '534065732573',
     appId: '1:534065732573:web:971c27fadb4d7c590a3434',
-    measurementId: 'G-XXXXXXXXXX', // <-- opcional,
+    measurementId: 'G-XXXXXXXXXX', // <-- opcional, si no tenés GA lo podés borrar
   );
 
   static const FirebaseOptions android = FirebaseOptions(
