@@ -129,6 +129,77 @@ class _AdminPanelState extends State<AdminPanel> {
     }
   }
 
+  Future<void> _editarReparacion() async {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty || reparacionData == null) return;
+
+    final nuevaMarca = await _mostrarDialogoEditar('Editar Marca', reparacionData!['marca']);
+    if (nuevaMarca == null) return;
+
+    final nuevoModelo = await _mostrarDialogoEditar('Editar Modelo', reparacionData!['modelo']);
+    if (nuevoModelo == null) return;
+
+    setState(() => isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).update({
+        'marca': nuevaMarca,
+        'modelo': nuevoModelo,
+      });
+      await _buscarReparacion();
+      setState(() => message = '✅ Reparación actualizada');
+    } catch (e) {
+      setState(() => message = '❌ Error al editar: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _borrarReparacion() async {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Eliminar reparación?'),
+        content: const Text('Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Eliminar', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).delete();
+      setState(() {
+        message = '✅ Reparación eliminada';
+        reparacionData = null;
+        _codigoController.clear();
+      });
+    } catch (e) {
+      setState(() => message = '❌ Error al eliminar: $e');
+    }
+  }
+
+  Future<String?> _mostrarDialogoEditar(String titulo, String valorActual) async {
+    final controller = TextEditingController(text: valorActual);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(titulo),
+        content: TextField(controller: controller, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Guardar')),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInfoTile(IconData icon, String label, String value) {
     return Row(
       children: [
@@ -300,6 +371,18 @@ class _AdminPanelState extends State<AdminPanel> {
                             onPressed: isLoading ? null : () => _cambiarEstado('Listo para retirar'),
                             child: const Text('Listo para retirar'),
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: isLoading ? null : _editarReparacion,
+                            icon: const Icon(Icons.edit),
+                            label: const Text('Editar'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: isLoading ? null : _borrarReparacion,
+                            icon: const Icon(Icons.delete),
+                            label: const Text('Eliminar'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.black87),
                           ),
                         ],
                       ),
