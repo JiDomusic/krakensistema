@@ -11,9 +11,56 @@ class AdminPanel extends StatefulWidget {
 
 class _AdminPanelState extends State<AdminPanel> {
   final _codigoController = TextEditingController();
+  final _dniController = TextEditingController();
+  final _marcaController = TextEditingController();
+  final _modeloController = TextEditingController();
+
   bool isLoading = false;
   String? message;
   Map<String, dynamic>? reparacionData;
+
+  Future<void> _agregarReparacion() async {
+    final codigo = _codigoController.text.trim();
+    final dni = _dniController.text.trim();
+    final marca = _marcaController.text.trim();
+    final modelo = _modeloController.text.trim();
+
+    if (codigo.isEmpty || dni.isEmpty || marca.isEmpty || modelo.isEmpty) {
+      setState(() => message = '⚠️ Completa todos los campos para agregar.');
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      message = null;
+    });
+
+    try {
+      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).set({
+        'codigo': codigo,
+        'dni': dni,
+        'marca': marca,
+        'modelo': modelo,
+        'estado': 'Recibido',
+        'fecha': FieldValue.serverTimestamp(),
+        'historial': [],
+      });
+
+      setState(() {
+        message = '✅ Reparación agregada correctamente.';
+        _codigoController.clear();
+        _dniController.clear();
+        _marcaController.clear();
+        _modeloController.clear();
+      });
+    } catch (e) {
+      setState(() {
+        message = '❌ Error al guardar: $e';
+      });
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
 
   Future<void> _buscarReparacion() async {
     final codigo = _codigoController.text.trim();
@@ -67,7 +114,7 @@ class _AdminPanelState extends State<AdminPanel> {
     try {
       final docRef = FirebaseFirestore.instance.collection('reparaciones').doc(codigo);
       await docRef.update({'estado': nuevoEstado});
-      _buscarReparacion(); // Actualizar vista
+      _buscarReparacion(); // actualizar vista
       setState(() {
         message = '✅ Estado actualizado a "$nuevoEstado"';
       });
@@ -111,7 +158,7 @@ class _AdminPanelState extends State<AdminPanel> {
     final estadoActual = reparacionData?['estado'];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE0F7FA), // celeste suave tipo tea
+      backgroundColor: const Color(0xFFE0F7FA),
       appBar: AppBar(
         backgroundColor: Colors.teal[700],
         title: const Text('Panel Admin'),
@@ -129,16 +176,60 @@ class _AdminPanelState extends State<AdminPanel> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Logo centrado
             Center(
-              child: Image.asset(
-                'assets/images/logokraken.jpg',
-                width: 120,
+              child: Image.asset('assets/images/logokraken.jpg', width: 120),
+            ),
+            const SizedBox(height: 30),
+
+            // FORMULARIO NUEVA REPARACIÓN
+            Card(
+              color: Colors.white,
+              elevation: 3,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    const Text('Agregar Nueva Reparación', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _codigoController,
+                      decoration: const InputDecoration(labelText: 'Código'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _dniController,
+                      decoration: const InputDecoration(labelText: 'DNI'),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _marcaController,
+                      decoration: const InputDecoration(labelText: 'Marca'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _modeloController,
+                      decoration: const InputDecoration(labelText: 'Modelo'),
+                    ),
+                    const SizedBox(height: 15),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text('Agregar Reparación'),
+                      onPressed: isLoading ? null : _agregarReparacion,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.pinkAccent,
+                        minimumSize: const Size.fromHeight(45),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 25),
 
+            // CONSULTAR REPARACIÓN
             TextField(
               controller: _codigoController,
               decoration: InputDecoration(
@@ -151,22 +242,18 @@ class _AdminPanelState extends State<AdminPanel> {
               onSubmitted: (_) => _buscarReparacion(),
             ),
 
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: isLoading ? null : _buscarReparacion,
-                icon: const Icon(Icons.search),
-                label: const Text('Buscar reparación'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal[800],
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
+            const SizedBox(height: 15),
+            ElevatedButton.icon(
+              onPressed: isLoading ? null : _buscarReparacion,
+              icon: const Icon(Icons.search),
+              label: const Text('Buscar reparación'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                minimumSize: const Size.fromHeight(48),
               ),
             ),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 20),
 
             if (reparacionData != null) ...[
               Card(
@@ -182,10 +269,8 @@ class _AdminPanelState extends State<AdminPanel> {
                       _buildInfoTile(Icons.phone_android, 'Modelo', reparacionData!['modelo'] ?? '—'),
                       const SizedBox(height: 10),
                       _buildInfoTile(Icons.info_outline, 'Estado actual', estadoActual ?? '—'),
-
                       const SizedBox(height: 20),
                       const Divider(),
-
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -196,9 +281,7 @@ class _AdminPanelState extends State<AdminPanel> {
                           _buildTrackingStep('Listo para retirar', estadoActual == 'Listo para retirar'),
                         ],
                       ),
-
                       const SizedBox(height: 25),
-
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
@@ -206,12 +289,12 @@ class _AdminPanelState extends State<AdminPanel> {
                           ElevatedButton(
                             onPressed: isLoading ? null : () => _cambiarEstado('Recibido'),
                             child: const Text('Recibido'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
                           ),
                           ElevatedButton(
                             onPressed: isLoading ? null : () => _cambiarEstado('En revisión'),
                             child: const Text('En revisión'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
                           ),
                           ElevatedButton(
                             onPressed: isLoading ? null : () => _cambiarEstado('Listo para retirar'),
@@ -228,12 +311,14 @@ class _AdminPanelState extends State<AdminPanel> {
 
             if (message != null) ...[
               const SizedBox(height: 20),
-              Text(message!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: message!.startsWith('❌') ? Colors.red : Colors.green[700],
-                    fontWeight: FontWeight.bold,
-                  )),
+              Text(
+                message!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: message!.startsWith('❌') ? Colors.red : Colors.green[700],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ],
         ),
