@@ -283,6 +283,30 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen> with SingleTick
                               ),
                             ),
                           ),
+                          const SizedBox(height: 30),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.pink[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '📌 Al dejar un equipo en reparación, el cliente acepta que:\n\n'
+                                  '• El diagnóstico puede demorar entre 24 y 72 horas hábiles.\n'
+                                  '• Los repuestos están sujetos a disponibilidad.\n'
+                                  '• El presupuesto debe ser aprobado antes de realizar cualquier trabajo.\n'
+                                  '• La garantía cubre exclusivamente la reparación realizada.\n'
+                                  '• Equipos no retirados en 60 días se considerarán en abandono.',
+                              style: GoogleFonts.notoSans(
+                                fontSize: 13,
+                                color: Colors.black87,
+                                height: 1.5,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: 30),
                         ],
                       ),
                     ),
