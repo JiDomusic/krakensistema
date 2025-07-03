@@ -14,6 +14,7 @@ class _AdminPanelState extends State<AdminPanel> {
   final _dniController = TextEditingController();
   final _marcaController = TextEditingController();
   final _modeloController = TextEditingController();
+  final _fallaController = TextEditingController();
 
   bool isLoading = false;
   String? message;
@@ -24,8 +25,9 @@ class _AdminPanelState extends State<AdminPanel> {
     final dni = _dniController.text.trim();
     final marca = _marcaController.text.trim();
     final modelo = _modeloController.text.trim();
+    final falla = _fallaController.text.trim();
 
-    if (codigo.isEmpty || dni.isEmpty || marca.isEmpty || modelo.isEmpty) {
+    if (codigo.isEmpty || dni.isEmpty || marca.isEmpty || modelo.isEmpty || falla.isEmpty) {
       setState(() => message = '⚠️ Completa todos los campos para agregar.');
       return;
     }
@@ -41,6 +43,8 @@ class _AdminPanelState extends State<AdminPanel> {
         'dni': dni,
         'marca': marca,
         'modelo': modelo,
+        'falla': falla,
+        'telefono': 'telefono',
         'estado': 'Recibido',
         'fecha': FieldValue.serverTimestamp(),
         'historial': [],
@@ -52,6 +56,7 @@ class _AdminPanelState extends State<AdminPanel> {
         _dniController.clear();
         _marcaController.clear();
         _modeloController.clear();
+        _fallaController.clear();
       });
     } catch (e) {
       setState(() {
@@ -87,6 +92,10 @@ class _AdminPanelState extends State<AdminPanel> {
       } else {
         setState(() {
           reparacionData = doc.data();
+          _dniController.text = reparacionData?['dni'] ?? '';
+          _marcaController.text = reparacionData?['marca'] ?? '';
+          _modeloController.text = reparacionData?['modelo'] ?? '';
+          _fallaController.text = reparacionData?['falla'] ?? '';
           message = null;
         });
       }
@@ -114,7 +123,7 @@ class _AdminPanelState extends State<AdminPanel> {
     try {
       final docRef = FirebaseFirestore.instance.collection('reparaciones').doc(codigo);
       await docRef.update({'estado': nuevoEstado});
-      _buscarReparacion(); // actualizar vista
+      _buscarReparacion();
       setState(() {
         message = '✅ Estado actualizado a "$nuevoEstado"';
       });
@@ -126,6 +135,64 @@ class _AdminPanelState extends State<AdminPanel> {
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _editarDatos() async {
+    final codigo = _codigoController.text.trim();
+    final dni = _dniController.text.trim();
+    final marca = _marcaController.text.trim();
+    final modelo = _modeloController.text.trim();
+    final falla = _fallaController.text.trim();
+
+    if (codigo.isEmpty) return;
+
+    setState(() => isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).update({
+        'dni': dni,
+        'marca': marca,
+        'modelo': modelo,
+        'falla': falla,
+      });
+
+      await _buscarReparacion();
+      setState(() {
+        message = '✅ Datos actualizados correctamente.';
+      });
+    } catch (e) {
+      setState(() {
+        message = '❌ Error al editar: $e';
+      });
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _eliminarReparacion() async {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty) return;
+
+    setState(() => isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).delete();
+      setState(() {
+        message = '✅ Reparación eliminada.';
+        reparacionData = null;
+        _codigoController.clear();
+        _dniController.clear();
+        _marcaController.clear();
+        _modeloController.clear();
+        _fallaController.clear();
+      });
+    } catch (e) {
+      setState(() {
+        message = '❌ Error al eliminar: $e';
+      });
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
@@ -196,7 +263,7 @@ class _AdminPanelState extends State<AdminPanel> {
                       controller: _codigoController,
                       decoration: const InputDecoration(labelText: 'Código'),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 20),
                     TextField(
                       controller: _dniController,
                       decoration: const InputDecoration(labelText: 'DNI'),
@@ -207,19 +274,24 @@ class _AdminPanelState extends State<AdminPanel> {
                       controller: _marcaController,
                       decoration: const InputDecoration(labelText: 'Marca'),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 30),
                     TextField(
                       controller: _modeloController,
                       decoration: const InputDecoration(labelText: 'Modelo'),
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 30),
+                    TextField(
+                      controller: _fallaController,
+                      decoration: const InputDecoration(labelText: 'falla'),
+                    ),
+                    const SizedBox(height: 25),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.add),
                       label: const Text('Agregar Reparación'),
                       onPressed: isLoading ? null : _agregarReparacion,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.pinkAccent,
-                        minimumSize: const Size.fromHeight(45),
+                        minimumSize: const Size.fromHeight(60),
                       ),
                     ),
                   ],
@@ -227,7 +299,7 @@ class _AdminPanelState extends State<AdminPanel> {
               ),
             ),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 55),
 
             // CONSULTAR REPARACIÓN
             TextField(
@@ -236,24 +308,24 @@ class _AdminPanelState extends State<AdminPanel> {
                 labelText: 'Código de reparación',
                 prefixIcon: const Icon(Icons.qr_code),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Colors.grey,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onSubmitted: (_) => _buscarReparacion(),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(height: 25),
             ElevatedButton.icon(
               onPressed: isLoading ? null : _buscarReparacion,
               icon: const Icon(Icons.search),
               label: const Text('Buscar reparación'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                minimumSize: const Size.fromHeight(48),
+                backgroundColor: Colors.lightBlueAccent,
+                minimumSize: const Size.fromHeight(58),
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 40),
 
             if (reparacionData != null) ...[
               Card(
@@ -264,27 +336,50 @@ class _AdminPanelState extends State<AdminPanel> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
+                      _buildInfoTile(Icons.devices_other, 'telefono', reparacionData!['tipo'] ?? '—'),
+                      const SizedBox(height: 20),
                       _buildInfoTile(Icons.precision_manufacturing, 'Marca', reparacionData!['marca'] ?? '—'),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 20),
                       _buildInfoTile(Icons.phone_android, 'Modelo', reparacionData!['modelo'] ?? '—'),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 20),
                       _buildInfoTile(Icons.info_outline, 'Estado actual', estadoActual ?? '—'),
                       const SizedBox(height: 20),
+
+                      // Botones Editar y Eliminar
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: isLoading ? null : _editarDatos,
+                            icon: const Icon(Icons.edit),
+                            label: const Text('Editar datos'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: isLoading ? null : _eliminarReparacion,
+                            icon: const Icon(Icons.delete),
+                            label: const Text('Eliminar reparación'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 25),
                       const Divider(),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildTrackingStep('Recibido', estadoActual == 'Recibido' || estadoActual == 'En revisión' || estadoActual == 'Listo para retirar'),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 15),
                           _buildTrackingStep('En revisión', estadoActual == 'En revisión' || estadoActual == 'Listo para retirar'),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 15),
                           _buildTrackingStep('Listo para retirar', estadoActual == 'Listo para retirar'),
                         ],
                       ),
-                      const SizedBox(height: 25),
+                      const SizedBox(height: 45),
                       Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
+                        spacing: 25,
+                        runSpacing: 25,
                         children: [
                           ElevatedButton(
                             onPressed: isLoading ? null : () => _cambiarEstado('Recibido'),
@@ -294,12 +389,12 @@ class _AdminPanelState extends State<AdminPanel> {
                           ElevatedButton(
                             onPressed: isLoading ? null : () => _cambiarEstado('En revisión'),
                             child: const Text('En revisión'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.lightGreen),
                           ),
                           ElevatedButton(
                             onPressed: isLoading ? null : () => _cambiarEstado('Listo para retirar'),
                             child: const Text('Listo para retirar'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.amberAccent),
                           ),
                         ],
                       ),
