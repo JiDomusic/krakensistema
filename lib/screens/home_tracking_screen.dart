@@ -36,7 +36,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
     ).animate(_animationController);
 
     _color2 = ColorTween(
-      begin: const Color(0xFF2979FF),
+      begin: const Color(0xFF7E43C6),
       end: const Color(0xFF1F8888),
     ).animate(_animationController);
   }
