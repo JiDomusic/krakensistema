@@ -19,6 +19,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late Animation<Color?> _color1;
   late Animation<Color?> _color2;
 
+  final List<String> allowedEmails = [
+    'equiz.rec@gmail.com',
+    'krakenserviciotecnico@gmail.com',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -54,10 +59,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      final email = userCredential.user?.email ?? '';
+
+      if (!allowedEmails.contains(email)) {
+        await FirebaseAuth.instance.signOut(); // cerrar sesión si no es admin
+        setState(() {
+          errorMessage = 'Correo no autorizado para acceder al panel de administrador.';
+          isLoading = false;
+        });
+        return;
+      }
 
       // Redirigir al panel admin
       if (mounted) {
