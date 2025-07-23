@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeTrackingScreen extends StatefulWidget {
   const HomeTrackingScreen({super.key});
@@ -31,13 +32,13 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
     )..repeat(reverse: true);
 
     _color1 = ColorTween(
-      begin: const Color(0xFF00BFA6),
-      end: const Color(0xFFC044EF),
+      begin: const Color(0xFF833AB4),
+      end: const Color(0xFFE1306C),
     ).animate(_animationController);
 
     _color2 = ColorTween(
-      begin: const Color(0xFF7E43C6),
-      end: const Color(0xFF1F8888),
+      begin: const Color(0xFFFD1D1D),
+      end: const Color(0xFFFCAF45),
     ).animate(_animationController);
   }
 
@@ -301,6 +302,64 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
                             ),
                           ],
                           const SizedBox(height: 30),
+                          GestureDetector(
+                            onTap: () async {
+                              final url = Uri.parse('https://www.instagram.com/krakenpcycelulares');
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(url, mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 10),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF833AB4),
+                                    Color(0xFFE1306C),
+                                    Color(0xFFFD1D1D),
+                                    Color(0xFFFCAF45),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.camera_alt,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    '📸 Síguenos en Instagram',
+                                    style: GoogleFonts.notoSans(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Icon(
+                                    Icons.open_in_new,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
