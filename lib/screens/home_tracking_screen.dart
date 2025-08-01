@@ -14,7 +14,7 @@ class HomeTrackingScreen extends StatefulWidget {
 class _HomeTrackingScreenState extends State<HomeTrackingScreen>
     with SingleTickerProviderStateMixin {
   final _dniController = TextEditingController();
-  final _codigoController = TextEditingController();
+  final _fechaController = TextEditingController();
   bool isLoading = false;
   String? message;
   Map<String, dynamic>? reparacion;
@@ -55,10 +55,10 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
       isLoading = true;
     });
 
-    final codigo = _codigoController.text.trim();
+    final fecha = _fechaController.text.trim();
     final dni = _dniController.text.trim();
 
-    if (codigo.isEmpty || dni.isEmpty) {
+    if (fecha.isEmpty || dni.isEmpty) {
       setState(() {
         message = '⚠️ Por favor completa ambos campos';
         isLoading = false;
@@ -69,7 +69,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
     try {
       final doc = await FirebaseFirestore.instance
           .collection('reparaciones')
-          .doc(codigo)
+          .doc(fecha)
           .get();
 
       if (!doc.exists) {
@@ -83,7 +83,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
       final data = doc.data()!;
       if (data['dni'] != dni) {
         setState(() {
-          message = '⚠️ DNI incorrecto para ese código';
+          message = '⚠️ DNI incorrecto para esa fecha';
           isLoading = false;
         });
         return;
@@ -92,7 +92,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
       setState(() {
         reparacion = data;
         isLoading = false;
-        _codigoController.clear();
+        _fechaController.clear();
         _dniController.clear();
       });
     } catch (e) {
@@ -224,10 +224,10 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
                                     color: Colors.pink[900])),
                             const SizedBox(height: 40),
                             TextField(
-                              controller: _codigoController,
+                              controller: _fechaController,
                               decoration: const InputDecoration(
-                                labelText: 'Código de reparación',
-                                prefixIcon: Icon(Icons.add_circle),
+                                labelText: 'Fecha de reparación (YYYY-MM-DD)',
+                                prefixIcon: Icon(Icons.calendar_today),
                               ),
                             ),
                             const SizedBox(height: 35),
@@ -289,7 +289,7 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
                               onPressed: () {
                                 setState(() {
                                   reparacion = null;
-                                  _codigoController.clear();
+                                  _fechaController.clear();
                                   _dniController.clear();
                                 });
                               },

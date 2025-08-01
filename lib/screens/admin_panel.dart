@@ -10,7 +10,7 @@ class AdminPanel extends StatefulWidget {
 }
 
 class _AdminPanelState extends State<AdminPanel> {
-  final _codigoController = TextEditingController();
+  final _fechaController = TextEditingController();
   final _dniController = TextEditingController();
   final _marcaController = TextEditingController();
   final _modeloController = TextEditingController();
@@ -20,29 +20,61 @@ class _AdminPanelState extends State<AdminPanel> {
   bool isLoading = false;
   String? message;
   Map<String, dynamic>? reparacionData;
+  bool _isAdmin = false;
 
-  bool get isAdmin => FirebaseAuth.instance.currentUser != null;
+  bool get isAdmin => _isAdmin;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final idTokenResult = await user.getIdTokenResult();
+        setState(() {
+          _isAdmin = idTokenResult.claims?['admin'] == true;
+        });
+        if (!_isAdmin) {
+          setState(() => message = '🔒 No tienes permisos de administrador.');
+        }
+      } catch (e) {
+        setState(() {
+          _isAdmin = false;
+          message = '❌ Error verificando permisos: $e';
+        });
+      }
+    } else {
+      setState(() {
+        _isAdmin = false;
+        message = '🔒 Debes iniciar sesión como administrador.';
+      });
+    }
+  }
 
   Future<void> _agregarReparacion() async {
     if (!isAdmin) {
       setState(() => message = '🔒 Debes iniciar sesión como administrador.');
       return;
     }
-    final codigo = _codigoController.text.trim();
+    final fecha = _fechaController.text.trim();
     final dni = _dniController.text.trim();
     final marca = _marcaController.text.trim();
     final modelo = _modeloController.text.trim();
     final falla = _fallaController.text.trim();
     final telefono = _telefonoController.text.trim();
 
-    if (codigo.isEmpty || dni.isEmpty || marca.isEmpty || modelo.isEmpty || falla.isEmpty || telefono.isEmpty) {
+    if (fecha.isEmpty || dni.isEmpty || marca.isEmpty || modelo.isEmpty || falla.isEmpty || telefono.isEmpty) {
       setState(() => message = '⚠️ Completa todos los campos para agregar.');
       return;
     }
     setState(() => isLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).set({
-        'codigo': codigo,
+      await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).set({
+        'fecha_documento': fecha,
         'dni': dni,
         'marca': marca,
         'modelo': modelo,
@@ -54,7 +86,7 @@ class _AdminPanelState extends State<AdminPanel> {
       });
       setState(() {
         message = '✅ Reparación agregada correctamente.';
-        _codigoController.clear();
+        _fechaController.clear();
         _dniController.clear();
         _marcaController.clear();
         _modeloController.clear();
@@ -69,17 +101,17 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 
   Future<void> _buscarReparacion() async {
-    final codigo = _codigoController.text.trim();
-    if (codigo.isEmpty) {
+    final fecha = _fechaController.text.trim();
+    if (fecha.isEmpty) {
       setState(() {
-        message = '⚠️ Ingresa el código de reparación';
+        message = '⚠️ Ingresa la fecha de reparación';
         reparacionData = null;
       });
       return;
     }
     setState(() => isLoading = true);
     try {
-      final doc = await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).get();
+      final doc = await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).get();
       if (!doc.exists) {
         setState(() {
           message = '❌ Reparación no encontrada';
@@ -111,14 +143,14 @@ class _AdminPanelState extends State<AdminPanel> {
       setState(() => message = '🔒 Debes iniciar sesión como administrador.');
       return;
     }
-    final codigo = _codigoController.text.trim();
-    if (codigo.isEmpty) return;
+    final fecha = _fechaController.text.trim();
+    if (fecha.isEmpty) return;
 
     setState(() => isLoading = true);
     try {
       await FirebaseFirestore.instance
           .collection('reparaciones')
-          .doc(codigo)
+          .doc(fecha)
           .update({'estado': nuevoEstado});
       await _buscarReparacion();
       setState(() => message = '✅ Estado actualizado a "$nuevoEstado"');
@@ -134,17 +166,17 @@ class _AdminPanelState extends State<AdminPanel> {
       setState(() => message = '🔒 Debes iniciar sesión como administrador.');
       return;
     }
-    final codigo = _codigoController.text.trim();
+    final fecha = _fechaController.text.trim();
     final dni = _dniController.text.trim();
     final marca = _marcaController.text.trim();
     final modelo = _modeloController.text.trim();
     final falla = _fallaController.text.trim();
     final telefono = _telefonoController.text.trim();
-    if (codigo.isEmpty) return;
+    if (fecha.isEmpty) return;
 
     setState(() => isLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).update({
+      await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).update({
         'dni': dni,
         'marca': marca,
         'modelo': modelo,
@@ -165,16 +197,16 @@ class _AdminPanelState extends State<AdminPanel> {
       setState(() => message = '🔒 Debes iniciar sesión como administrador.');
       return;
     }
-    final codigo = _codigoController.text.trim();
-    if (codigo.isEmpty) return;
+    final fecha = _fechaController.text.trim();
+    if (fecha.isEmpty) return;
 
     setState(() => isLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('reparaciones').doc(codigo).delete();
+      await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).delete();
       setState(() {
         message = '✅ Reparación eliminada.';
         reparacionData = null;
-        _codigoController.clear();
+        _fechaController.clear();
         _dniController.clear();
         _marcaController.clear();
         _modeloController.clear();
@@ -281,7 +313,7 @@ class _AdminPanelState extends State<AdminPanel> {
                     const Text('➕ Agregar Nueva Reparación',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                     const SizedBox(height: 12),
-                    TextField(controller: _codigoController, decoration: const InputDecoration(labelText: 'Código')),
+                    TextField(controller: _fechaController, decoration: const InputDecoration(labelText: 'Fecha (YYYY-MM-DD)')),
                     const SizedBox(height: 12),
                     TextField(controller: _dniController, decoration: const InputDecoration(labelText: 'DNI'), keyboardType: TextInputType.number),
                     const SizedBox(height: 12),
@@ -319,10 +351,10 @@ class _AdminPanelState extends State<AdminPanel> {
 
             // Buscar Reparación
             TextField(
-              controller: _codigoController,
+              controller: _fechaController,
               decoration: InputDecoration(
-                labelText: '🔍 Código de reparación',
-                prefixIcon: const Icon(Icons.qr_code),
+                labelText: '🔍 Fecha de reparación (YYYY-MM-DD)',
+                prefixIcon: const Icon(Icons.calendar_today),
                 filled: true,
                 fillColor: Colors.grey[200],
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
