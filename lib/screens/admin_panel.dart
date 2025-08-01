@@ -35,8 +35,15 @@ class _AdminPanelState extends State<AdminPanel> {
     if (user != null) {
       try {
         final idTokenResult = await user.getIdTokenResult();
+        final userEmail = user.email;
+        
+        // Verificar tanto custom claims como email hardcodeado
+        final hasAdminClaim = idTokenResult.claims?['admin'] == true;
+        final isAdminEmail = userEmail == "equiz.rec@gmail.com" || 
+                            userEmail == "krakenserviciotecnico@gmail.com";
+        
         setState(() {
-          _isAdmin = idTokenResult.claims?['admin'] == true;
+          _isAdmin = hasAdminClaim || isAdminEmail;
         });
         if (!_isAdmin) {
           setState(() => message = '🔒 No tienes permisos de administrador.');
