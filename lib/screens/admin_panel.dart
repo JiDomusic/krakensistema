@@ -162,7 +162,9 @@ class _AdminPanelState extends State<AdminPanel> {
           _modeloController.text = reparacionData?['modelo'] ?? '';
           _fallaController.text = reparacionData?['falla'] ?? '';
           _telefonoController.text = reparacionData?['telefono'] ?? '';
-          _fechaController.text = reparacionData?['fecha'] ?? '';
+          _fechaController.text = reparacionData?['fecha'] != null 
+              ? (reparacionData!['fecha'] as Timestamp).toDate().toString()
+              : '';
           message = query.docs.length > 1 
               ? '✅ Reparación encontrada (${query.docs.length} total)' 
               : '✅ Reparación encontrada';
@@ -187,7 +189,9 @@ class _AdminPanelState extends State<AdminPanel> {
       _modeloController.text = reparacion['modelo'] ?? '';
       _fallaController.text = reparacion['falla'] ?? '';
       _telefonoController.text = reparacion['telefono'] ?? '';
-      _fechaController.text = reparacion['fecha'] ?? '';
+      _fechaController.text = reparacion['fecha'] != null 
+          ? (reparacion['fecha'] as Timestamp).toDate().toString()
+          : '';
       reparacionesPorFecha = [];
       message = null;
     });
@@ -250,12 +254,13 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 
   Future<void> _eliminarReparacion() async {
-    final fecha = _fechaController.text.trim();
-    if (fecha.isEmpty) return;
+    if (reparacionData == null) return;
+    final docId = reparacionData!['id'] ?? reparacionData!['dni'];
+    if (docId == null) return;
 
     setState(() => isLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).delete();
+      await FirebaseFirestore.instance.collection('reparaciones').doc(docId).delete();
       setState(() {
         message = '✅ Reparación eliminada.';
         reparacionData = null;

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 class HomeTrackingScreen extends StatefulWidget {
   const HomeTrackingScreen({super.key});
@@ -14,7 +15,6 @@ class HomeTrackingScreen extends StatefulWidget {
 class _HomeTrackingScreenState extends State<HomeTrackingScreen>
     with SingleTickerProviderStateMixin {
   final _dniController = TextEditingController();
-  final _fechaController = TextEditingController();
   bool isLoading = false;
   String? message;
   Map<String, dynamic>? reparacion;
@@ -48,6 +48,15 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
     super.dispose();
   }
 
+  String _formatDate(dynamic fecha) {
+    if (fecha == null) return 'Fecha no disponible';
+    if (fecha is Timestamp) {
+      return DateFormat('dd/MM/yyyy - HH:mm').format(fecha.toDate());
+    }
+    if (fecha is String) return fecha;
+    return 'Fecha no disponible';
+  }
+
   Future<void> _consultarReparacion() async {
     setState(() {
       message = null;
@@ -55,12 +64,11 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
       isLoading = true;
     });
 
-    final fecha = _fechaController.text.trim();
     final dni = _dniController.text.trim();
 
-    if (fecha.isEmpty || dni.isEmpty) {
+    if (dni.isEmpty) {
       setState(() {
-        message = '⚠️ Por favor completa ambos campos';
+        message = '⚠️ Por favor ingresa tu DNI';
         isLoading = false;
       });
       return;
@@ -69,30 +77,21 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
     try {
       final doc = await FirebaseFirestore.instance
           .collection('reparaciones')
-          .doc(fecha)
+          .doc(dni)
           .get();
 
       if (!doc.exists) {
         setState(() {
-          message = '❌ Reparación no encontrada';
+          message = '❌ Reparación no encontrada con ese DNI';
           isLoading = false;
         });
         return;
       }
 
       final data = doc.data()!;
-      if (data['dni'] != dni) {
-        setState(() {
-          message = '⚠️ DNI incorrecto para esa fecha';
-          isLoading = false;
-        });
-        return;
-      }
-
       setState(() {
         reparacion = data;
         isLoading = false;
-        _fechaController.clear();
         _dniController.clear();
       });
     } catch (e) {
@@ -224,14 +223,6 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
                                     color: Colors.pink[900])),
                             const SizedBox(height: 40),
                             TextField(
-                              controller: _fechaController,
-                              decoration: const InputDecoration(
-                                labelText: 'Fecha de reparación (YYYY-MM-DD)',
-                                prefixIcon: Icon(Icons.calendar_today),
-                              ),
-                            ),
-                            const SizedBox(height: 35),
-                            TextField(
                               controller: _dniController,
                               decoration: const InputDecoration(
                                 labelText: 'DNI del cliente',
@@ -269,13 +260,17 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
                               ),
                             ],
                           ] else ...[
-                            Text('Modelo: ${reparacion!['modelo']}',
+                            Text('${reparacion!['marca']} ${reparacion!['modelo']}',
                                 style: GoogleFonts.notoSans(
                                     fontSize: 20, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 10),
                             Text('Teléfono: ${reparacion!['telefono']}',
                                 style: GoogleFonts.notoSans(
                                     fontSize: 18, color: Colors.black87)),
+                            const SizedBox(height: 10),
+                            Text('Ingresado: ${_formatDate(reparacion!['fecha'])}',
+                                style: GoogleFonts.notoSans(
+                                    fontSize: 16, color: Colors.black87)),
                             const SizedBox(height: 10),
                             Text('Falla: ${reparacion!['falla']}',
                                 style: GoogleFonts.notoSans(
@@ -289,7 +284,6 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
                               onPressed: () {
                                 setState(() {
                                   reparacion = null;
-                                  _fechaController.clear();
                                   _dniController.clear();
                                 });
                               },
