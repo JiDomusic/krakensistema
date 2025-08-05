@@ -424,6 +424,8 @@ class _AdminPanelState extends State<AdminPanel> {
                         children: [
                           _buildStatusButton('Recibido', estadoActual, Icons.inbox),
                           _buildStatusButton('En revisión', estadoActual, Icons.search),
+
+
                           _buildStatusButton('Listo para retirar', estadoActual, Icons.done_all),
                         ],
                       ),

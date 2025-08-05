@@ -1,18 +1,23 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Colección de reparaciones
     match /reparaciones/{documento} {
-      // Solo admins autenticados con custom claim pueden hacer todo (CRUD completo)
+      // Admins pueden hacer CRUD completo (crear, leer, actualizar, eliminar)
       allow read, write, create, update, delete: if request.auth != null && 
-                                                     request.auth.token.admin == true;
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.admins == true;
       
-      // Usuarios regulares solo pueden leer
-      allow read: if request.auth != null;
+      // Clientes pueden leer sin autenticación para consultar por fecha y DNI
+      allow read: if request.auth == null;
     }
     
-    // Colección para gestión de admins (solo admins pueden modificar)
-    match /admin_users/{userId} {
-      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    // Colección de admins
+    match /admins/{userId} {
+      // Admins pueden leer y escribir en la colección de admins
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.admins == true;
     }
   }
 }
