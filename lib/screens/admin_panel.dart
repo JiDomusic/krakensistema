@@ -16,10 +16,13 @@ class _AdminPanelState extends State<AdminPanel> {
   final _modeloController = TextEditingController();
   final _fallaController = TextEditingController();
   final _telefonoController = TextEditingController();
+  final _buscarFechaController = TextEditingController();
+  final _buscarDniController = TextEditingController();
 
   bool isLoading = false;
   String? message;
   Map<String, dynamic>? reparacionData;
+  List<Map<String, dynamic>> reparacionesPorFecha = [];
   bool _isAdmin = false;
 
   bool get isAdmin => _isAdmin;
@@ -63,25 +66,19 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 
   Future<void> _agregarReparacion() async {
-    if (!isAdmin) {
-      setState(() => message = '🔒 Debes iniciar sesión como administrador.');
-      return;
-    }
-    final fecha = _fechaController.text.trim();
     final dni = _dniController.text.trim();
     final marca = _marcaController.text.trim();
     final modelo = _modeloController.text.trim();
     final falla = _fallaController.text.trim();
     final telefono = _telefonoController.text.trim();
 
-    if (fecha.isEmpty || dni.isEmpty || marca.isEmpty || modelo.isEmpty || falla.isEmpty || telefono.isEmpty) {
+    if (dni.isEmpty || marca.isEmpty || modelo.isEmpty || falla.isEmpty || telefono.isEmpty) {
       setState(() => message = '⚠️ Completa todos los campos para agregar.');
       return;
     }
     setState(() => isLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).set({
-        'fecha_documento': fecha,
+      await FirebaseFirestore.instance.collection('reparaciones').doc(dni).set({
         'dni': dni,
         'marca': marca,
         'modelo': modelo,
@@ -93,7 +90,6 @@ class _AdminPanelState extends State<AdminPanel> {
       });
       setState(() {
         message = '✅ Reparación agregada correctamente.';
-        _fechaController.clear();
         _dniController.clear();
         _marcaController.clear();
         _modeloController.clear();
@@ -107,32 +103,70 @@ class _AdminPanelState extends State<AdminPanel> {
     }
   }
 
-  Future<void> _buscarReparacion() async {
-    final fecha = _fechaController.text.trim();
-    if (fecha.isEmpty) {
+  Future<void> _buscarTodasReparaciones() async {
+    setState(() => isLoading = true);
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .orderBy('fecha', descending: true)
+          .get();
+      
       setState(() {
-        message = '⚠️ Ingresa la fecha de reparación';
+        reparacionesPorFecha = query.docs.map((doc) => {
+          'id': doc.id,
+          ...doc.data() as Map<String, dynamic>
+        }).toList();
+        message = reparacionesPorFecha.isEmpty 
+            ? '❌ No hay reparaciones' 
+            : '✅ ${reparacionesPorFecha.length} reparaciones encontradas';
+        reparacionData = null;
+      });
+    } catch (e) {
+      setState(() {
+        message = '❌ Error: $e';
+        reparacionesPorFecha = [];
+      });
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _buscarPorDni() async {
+    final dni = _buscarDniController.text.trim();
+    if (dni.isEmpty) {
+      setState(() {
+        message = '⚠️ Ingresa el DNI para buscar';
         reparacionData = null;
       });
       return;
     }
     setState(() => isLoading = true);
     try {
-      final doc = await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).get();
-      if (!doc.exists) {
+      final query = await FirebaseFirestore.instance
+          .collection('reparaciones')
+          .where('dni', isEqualTo: dni)
+          .get();
+      
+      if (query.docs.isEmpty) {
         setState(() {
-          message = '❌ Reparación no encontrada';
+          message = '❌ No se encontraron reparaciones para este DNI';
           reparacionData = null;
         });
       } else {
+        final doc = query.docs.first;
         setState(() {
           reparacionData = doc.data();
+          reparacionData!['id'] = doc.id;
           _dniController.text = reparacionData?['dni'] ?? '';
           _marcaController.text = reparacionData?['marca'] ?? '';
           _modeloController.text = reparacionData?['modelo'] ?? '';
           _fallaController.text = reparacionData?['falla'] ?? '';
           _telefonoController.text = reparacionData?['telefono'] ?? '';
-          message = null;
+          _fechaController.text = reparacionData?['fecha'] ?? '';
+          message = query.docs.length > 1 
+              ? '✅ Reparación encontrada (${query.docs.length} total)' 
+              : '✅ Reparación encontrada';
+          reparacionesPorFecha = [];
         });
       }
     } catch (e) {
@@ -145,22 +179,36 @@ class _AdminPanelState extends State<AdminPanel> {
     }
   }
 
+  void _seleccionarReparacion(Map<String, dynamic> reparacion) {
+    setState(() {
+      reparacionData = reparacion;
+      _dniController.text = reparacion['dni'] ?? '';
+      _marcaController.text = reparacion['marca'] ?? '';
+      _modeloController.text = reparacion['modelo'] ?? '';
+      _fallaController.text = reparacion['falla'] ?? '';
+      _telefonoController.text = reparacion['telefono'] ?? '';
+      _fechaController.text = reparacion['fecha'] ?? '';
+      reparacionesPorFecha = [];
+      message = null;
+    });
+  }
+
   Future<void> _cambiarEstado(String nuevoEstado) async {
-    if (!isAdmin) {
-      setState(() => message = '🔒 Debes iniciar sesión como administrador.');
-      return;
-    }
-    final fecha = _fechaController.text.trim();
-    if (fecha.isEmpty) return;
+    if (reparacionData == null) return;
+    final docId = reparacionData!['id'] ?? reparacionData!['codigo'];
+    if (docId == null) return;
 
     setState(() => isLoading = true);
     try {
       await FirebaseFirestore.instance
           .collection('reparaciones')
-          .doc(fecha)
+          .doc(docId)
           .update({'estado': nuevoEstado});
-      await _buscarReparacion();
-      setState(() => message = '✅ Estado actualizado a "$nuevoEstado"');
+      
+      setState(() {
+        reparacionData!['estado'] = nuevoEstado;
+        message = '✅ Estado actualizado a "$nuevoEstado"';
+      });
     } catch (e) {
       setState(() => message = '❌ Error al actualizar: $e');
     } finally {
@@ -169,28 +217,30 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 
   Future<void> _editarDatos() async {
-    if (!isAdmin) {
-      setState(() => message = '🔒 Debes iniciar sesión como administrador.');
-      return;
-    }
-    final fecha = _fechaController.text.trim();
+    if (reparacionData == null) return;
     final dni = _dniController.text.trim();
     final marca = _marcaController.text.trim();
     final modelo = _modeloController.text.trim();
     final falla = _fallaController.text.trim();
     final telefono = _telefonoController.text.trim();
-    if (fecha.isEmpty) return;
+    if (dni.isEmpty) return;
 
     setState(() => isLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('reparaciones').doc(fecha).update({
+      await FirebaseFirestore.instance.collection('reparaciones').doc(dni).update({
         'dni': dni,
         'marca': marca,
         'modelo': modelo,
         'falla': falla,
         'telefono': telefono,
       });
-      await _buscarReparacion();
+      setState(() {
+        reparacionData!['dni'] = dni;
+        reparacionData!['marca'] = marca;
+        reparacionData!['modelo'] = modelo;
+        reparacionData!['falla'] = falla;
+        reparacionData!['telefono'] = telefono;
+      });
       setState(() => message = '✅ Datos actualizados correctamente.');
     } catch (e) {
       setState(() => message = '❌ Error al editar: $e');
@@ -200,10 +250,6 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 
   Future<void> _eliminarReparacion() async {
-    if (!isAdmin) {
-      setState(() => message = '🔒 Debes iniciar sesión como administrador.');
-      return;
-    }
     final fecha = _fechaController.text.trim();
     if (fecha.isEmpty) return;
 
@@ -320,8 +366,6 @@ class _AdminPanelState extends State<AdminPanel> {
                     const Text('➕ Agregar Nueva Reparación',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                     const SizedBox(height: 12),
-                    TextField(controller: _fechaController, decoration: const InputDecoration(labelText: 'Fecha (YYYY-MM-DD)')),
-                    const SizedBox(height: 12),
                     TextField(controller: _dniController, decoration: const InputDecoration(labelText: 'DNI'), keyboardType: TextInputType.number),
                     const SizedBox(height: 12),
                     TextField(controller: _marcaController, decoration: const InputDecoration(labelText: 'Marca')),
@@ -356,27 +400,107 @@ class _AdminPanelState extends State<AdminPanel> {
 
             const SizedBox(height: 40),
 
-            // Buscar Reparación
-            TextField(
-              controller: _fechaController,
-              decoration: InputDecoration(
-                labelText: '🔍 Fecha de reparación (YYYY-MM-DD)',
-                prefixIcon: const Icon(Icons.calendar_today),
-                filled: true,
-                fillColor: Colors.grey[200],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            // Búsquedas
+            Card(
+              color: Colors.white,
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('🔍 Buscar Reparaciones',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    const SizedBox(height: 20),
+                    
+                    // Ver todas las reparaciones
+                    ElevatedButton.icon(
+                      onPressed: isLoading ? null : _buscarTodasReparaciones,
+                      icon: const Icon(Icons.list),
+                      label: const Text('Ver Todas las Reparaciones'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 20),
+                    
+                    // Buscar por DNI
+                    TextField(
+                      controller: _buscarDniController,
+                      decoration: InputDecoration(
+                        labelText: 'Buscar por DNI',
+                        prefixIcon: const Icon(Icons.person),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onSubmitted: (_) => _buscarPorDni(),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: isLoading ? null : _buscarPorDni,
+                      icon: const Icon(Icons.search),
+                      label: const Text('Buscar por DNI'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              onSubmitted: (_) => _buscarReparacion(),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: isLoading ? null : _buscarReparacion,
-              icon: const Icon(Icons.search),
-              label: const Text('Buscar'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
             ),
 
             const SizedBox(height: 30),
+
+            // Lista de reparaciones por fecha
+            if (reparacionesPorFecha.isNotEmpty) ...[
+              Card(
+                color: Colors.white,
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('📋 Reparaciones encontradas (${reparacionesPorFecha.length})',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 15),
+                      ...reparacionesPorFecha.map((reparacion) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.teal,
+                            child: Text(
+                              reparacion['dni']?.toString().substring(0, 2) ?? '??',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          title: Text('${reparacion['marca']} ${reparacion['modelo']}'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('DNI: ${reparacion['dni']}'),
+                              Text('Estado: ${reparacion['estado'] ?? 'Recibido'}'),
+                            ],
+                          ),
+                          trailing: const Icon(Icons.arrow_forward_ios),
+                          onTap: () => _seleccionarReparacion(reparacion),
+                        ),
+                      )).toList(),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             if (reparacionData != null) ...[
               Card(
