@@ -104,13 +104,14 @@ class _HomeTrackingScreenState extends State<HomeTrackingScreen>
 
   Widget _buildTimeline() {
     final estado = reparacion!['estado'] as String;
-    final steps = ['Recibido', 'En revisión', 'Listo para retirar'];
+    final steps = ['Recibido', 'En revisión', 'Listo para retirar', 'Entregado'];
     final currentIndex = steps.indexOf(estado);
 
     final icons = [
       Icons.inbox_rounded,
       Icons.build_rounded,
-      Icons.emoji_people_rounded
+      Icons.emoji_people_rounded,
+      Icons.check_circle_rounded
     ];
 
     return Column(

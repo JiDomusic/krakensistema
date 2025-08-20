@@ -298,6 +298,7 @@ class _AdminPanelState extends State<AdminPanel> {
           'Recibido': Colors.teal[700]!,
           'En revisión': Colors.blueGrey[700]!,
           'Listo para retirar': Colors.green[700]!,
+          'Entregado': Colors.purple[700]!,
         }[estado]!;
       } else {
         // Color normal cuando no es el estado actual
@@ -305,6 +306,7 @@ class _AdminPanelState extends State<AdminPanel> {
           'Recibido': Colors.teal[400]!,
           'En revisión': Colors.blueGrey[400]!,
           'Listo para retirar': Colors.green[400]!,
+          'Entregado': Colors.purple[400]!,
         }[estado]!;
       }
     }
@@ -553,9 +555,8 @@ class _AdminPanelState extends State<AdminPanel> {
                         children: [
                           _buildStatusButton('Recibido', estadoActual, Icons.inbox),
                           _buildStatusButton('En revisión', estadoActual, Icons.search),
-
-
                           _buildStatusButton('Listo para retirar', estadoActual, Icons.done_all),
+                          _buildStatusButton('Entregado', estadoActual, Icons.check_circle),
                         ],
                       ),
                     ],
